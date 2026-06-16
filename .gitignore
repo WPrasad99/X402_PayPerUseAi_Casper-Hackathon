@@ -1,0 +1,13 @@
+node_modules/
+.env
+*.pem
+__pycache__/
+.venv/
+venv/
+.gemini/
+dist/
+build/
+*.log
+last_deploy.json
+test_deploy.json
+New Text Document.txt
