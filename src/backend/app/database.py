@@ -1,0 +1,1343 @@
+"""
+Async PostgreSQL database module using asyncpg with connection pooling.
+
+Design principles:
+- Database is ONLY for caching, indexing, analytics, and fast querying
+- NO user balances stored (balances are on-chain in smart contract)
+- Uses JSONB for flexible metadata (NFTs, AI logs)
+- Proper indexing for high-read workloads
+- Transaction-safe writes via connection pooling
+"""
+import asyncpg
+from datetime import datetime, timezone
+from typing import Optional
+import json
+
+# Module-level connection pool
+_pool: Optional[asyncpg.Pool] = None
+
+
+async def get_pool() -> asyncpg.Pool:
+    """Returns the global connection pool. Raises if not initialized."""
+    global _pool
+    if _pool is None:
+        raise RuntimeError("Database pool not initialized. Call init_pool() first.")
+    return _pool
+
+
+async def init_pool(database_url: str) -> asyncpg.Pool:
+    """
+    Creates an async connection pool to PostgreSQL.
+    Called once at application startup.
+    """
+    global _pool
+    import urllib.parse as urlparse
+
+    # Parse URL properly using standard library
+    parsed = urlparse.urlparse(database_url)
+    
+    # Strip any query parameters from the database name (e.g. ?sslmode=require)
+    db_name = parsed.path.lstrip('/')
+    if '?' in db_name:
+        db_name = db_name.split('?')[0]
+    
+    # Extract query params for SSL handling
+    query_params = urlparse.parse_qs(parsed.query)
+    ssl_mode = query_params.get('sslmode', [None])[0]
+    
+    # In production (Render/Supabase), we usually need SSL
+    ssl_context = "require" if ssl_mode == "require" or "supabase.com" in parsed.netloc or "supabase.co" in parsed.netloc else None
+
+    _pool = await asyncpg.create_pool(
+        user=parsed.username,
+        password=urlparse.unquote(parsed.password) if parsed.password else None,
+        database=db_name,
+        host=parsed.hostname,
+        port=parsed.port or 5432,
+        ssl=ssl_context,
+        # ── Scaling: increased pool to handle 1000-10000 concurrent users ──
+        min_size=5,
+        max_size=50,
+        command_timeout=30,
+        statement_cache_size=0,
+        # Recycle idle connections after 5 minutes to free resources
+        max_inactive_connection_lifetime=300,
+    )
+    return _pool
+
+
+async def close_pool():
+    """Closes the connection pool. Called at application shutdown."""
+    global _pool
+    if _pool:
+        await _pool.close()
+        _pool = None
+
+
+# ────────────────────────────────────────────────────────
+# SCHEMA MIGRATIONS
+# ────────────────────────────────────────────────────────
+
+SCHEMA_SQL = """
+-- Users
+CREATE TABLE IF NOT EXISTS users (
+    wallet_address TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    dob TEXT NOT NULL,
+    email TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Sessions (legacy compatibility)
+CREATE TABLE IF NOT EXISTS sessions (
+    session_id TEXT PRIMARY KEY,
+    service_id TEXT NOT NULL,
+    wallet_address TEXT NOT NULL,
+    prompt TEXT NOT NULL,
+    status TEXT DEFAULT 'pending',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL
+);
+
+-- X402 Payment Sessions
+CREATE TABLE IF NOT EXISTS x402_payment_sessions (
+    token TEXT PRIMARY KEY,
+    payer_wallet TEXT NOT NULL,
+    initial_units BIGINT NOT NULL,
+    remaining_units BIGINT NOT NULL,
+    tx_hash TEXT NOT NULL,
+    messages_count INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_used_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+
+-- Conversations
+CREATE TABLE IF NOT EXISTS conversations (
+    conversation_id TEXT PRIMARY KEY,
+    service_id TEXT NOT NULL,
+    wallet_address TEXT NOT NULL,
+    tx_id TEXT,
+    paid INTEGER DEFAULT 0,
+    total_tokens INTEGER DEFAULT 0,
+    total_cost_usd DOUBLE PRECISION DEFAULT 0.0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Messages
+CREATE TABLE IF NOT EXISTS messages (
+    id SERIAL PRIMARY KEY,
+    conversation_id TEXT NOT NULL REFERENCES conversations(conversation_id),
+    role TEXT NOT NULL,
+    content TEXT NOT NULL,
+    tokens_used INTEGER DEFAULT 0,
+    cost_usd DOUBLE PRECISION DEFAULT 0.0,
+    model TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Blockchain Transaction Logs (audit trail — no balances)
+CREATE TABLE IF NOT EXISTS blockchain_tx_log (
+    id SERIAL PRIMARY KEY,
+    wallet_address TEXT NOT NULL,
+    tx_type TEXT NOT NULL,
+    amount_motes BIGINT NOT NULL DEFAULT 0,
+    on_chain_tx_id TEXT,
+    service_id TEXT,
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- AI Query Logs
+CREATE TABLE IF NOT EXISTS ai_query_log (
+    id SERIAL PRIMARY KEY,
+    session_id TEXT,
+    conversation_id TEXT,
+    wallet_address TEXT NOT NULL,
+    service_id TEXT NOT NULL,
+    prompt_hash TEXT,
+    response_hash TEXT,
+    tokens_used INTEGER DEFAULT 0,
+    on_chain_proof_tx TEXT,
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- NFT Metadata (off-chain reference)
+CREATE TABLE IF NOT EXISTS nft_metadata (
+    id SERIAL PRIMARY KEY,
+    asset_id BIGINT UNIQUE,
+    wallet_address TEXT NOT NULL,
+    prompt TEXT,
+    prompt_hash TEXT,
+    image_hash TEXT,
+    image_url TEXT,
+    metadata_uri TEXT,
+    on_chain_tx_id TEXT,
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Services Registry (off-chain index of on-chain services)
+CREATE TABLE IF NOT EXISTS services (
+    service_id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    price_input_motes BIGINT NOT NULL,
+    price_output_motes BIGINT NOT NULL,
+    creator_address TEXT,
+    example_prompt TEXT,
+    system_prompt TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Used Deposits (double-spend protection cache)
+CREATE TABLE IF NOT EXISTS used_deposits (
+    tx_id TEXT PRIMARY KEY,
+    wallet_address TEXT NOT NULL,
+    amount_motes BIGINT NOT NULL,
+    credited_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Legacy query_log for backward compat
+CREATE TABLE IF NOT EXISTS query_log (
+    id SERIAL PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    tx_group_id TEXT,
+    ai_response TEXT,
+    tokens_used INTEGER DEFAULT 0,
+    completed_at TIMESTAMPTZ
+);
+
+-- SIWA Nonces
+CREATE TABLE IF NOT EXISTS siwa_nonces (
+    wallet_address TEXT PRIMARY KEY,
+    nonce TEXT NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL
+);
+
+-- ════════════════════════════════════════════════════════
+-- MARKETPLACE TABLES
+-- ════════════════════════════════════════════════════════
+
+-- Creator Profiles (DID-linked identity)
+CREATE TABLE IF NOT EXISTS creator_profiles (
+    wallet_address TEXT PRIMARY KEY,
+    did TEXT UNIQUE NOT NULL,
+    display_name TEXT NOT NULL,
+    bio TEXT DEFAULT '',
+    avatar_url TEXT DEFAULT '',
+    social_twitter TEXT DEFAULT '',
+    social_github TEXT DEFAULT '',
+    social_website TEXT DEFAULT '',
+    is_verified BOOLEAN DEFAULT FALSE,
+    total_earnings_motes BIGINT DEFAULT 0,
+    total_agents INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- AI Agents (core marketplace entity)
+CREATE TABLE IF NOT EXISTS ai_agents (
+    agent_id TEXT PRIMARY KEY,
+    creator_wallet TEXT NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT 'general',
+    tags TEXT DEFAULT '',
+    thumbnail_url TEXT DEFAULT '',
+    provider TEXT NOT NULL,
+    model TEXT NOT NULL,
+    system_prompt TEXT NOT NULL,
+    temperature REAL DEFAULT 0.7,
+    max_tokens INTEGER DEFAULT 1500,
+    price_per_request_motes BIGINT DEFAULT 0,
+    price_input_motes BIGINT DEFAULT 0,
+    price_output_motes BIGINT DEFAULT 0,
+    pricing_model TEXT DEFAULT 'per_token',
+    visibility TEXT DEFAULT 'public',
+    is_active BOOLEAN DEFAULT TRUE,
+    total_uses BIGINT DEFAULT 0,
+    total_tokens_served BIGINT DEFAULT 0,
+    total_revenue_motes BIGINT DEFAULT 0,
+    avg_rating REAL DEFAULT 0.0,
+    review_count INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Creator API Keys (AES-256 encrypted, BYOK mandatory)
+CREATE TABLE IF NOT EXISTS creator_api_keys (
+    id SERIAL PRIMARY KEY,
+    creator_wallet TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    encrypted_key TEXT NOT NULL,
+    key_hint TEXT DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(creator_wallet, provider)
+);
+
+-- AI Agent Usage Logs
+CREATE TABLE IF NOT EXISTS ai_agent_usage (
+    id SERIAL PRIMARY KEY,
+    agent_id TEXT NOT NULL REFERENCES ai_agents(agent_id) ON DELETE CASCADE,
+    user_wallet TEXT NOT NULL,
+    prompt_hash TEXT,
+    response_hash TEXT,
+    tokens_input INTEGER DEFAULT 0,
+    tokens_output INTEGER DEFAULT 0,
+    cost_motes BIGINT DEFAULT 0,
+    creator_cut_motes BIGINT DEFAULT 0,
+    platform_cut_motes BIGINT DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Marketplace Reviews
+CREATE TABLE IF NOT EXISTS marketplace_reviews (
+    id SERIAL PRIMARY KEY,
+    agent_id TEXT NOT NULL,
+    user_wallet TEXT NOT NULL,
+    rating INTEGER NOT NULL,
+    review_text TEXT DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(agent_id, user_wallet)
+);
+
+-- Creator Earnings Ledger (off-chain cache of on-chain state)
+CREATE TABLE IF NOT EXISTS creator_earnings_ledger (
+    id SERIAL PRIMARY KEY,
+    creator_wallet TEXT NOT NULL,
+    agent_id TEXT,
+    amount_motes BIGINT NOT NULL,
+    tx_type TEXT NOT NULL,
+    on_chain_tx_id TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Pending Settlements (Two-Phase Locking Pattern queue)
+CREATE TABLE IF NOT EXISTS pending_settlements (
+    id SERIAL PRIMARY KEY,
+    user_wallet TEXT NOT NULL,
+    service_id TEXT NOT NULL,
+    amount_motes BIGINT NOT NULL,
+    status TEXT DEFAULT 'pending',
+    error_reason TEXT,
+    retry_count INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+"""
+
+INDEXES_SQL = """
+-- User indexes
+CREATE INDEX IF NOT EXISTS idx_user_wallet ON users(wallet_address);
+
+-- Conversation indexes
+CREATE INDEX IF NOT EXISTS idx_conv_wallet ON conversations(wallet_address);
+CREATE INDEX IF NOT EXISTS idx_conv_wallet_service ON conversations(wallet_address, service_id);
+CREATE INDEX IF NOT EXISTS idx_conv_created ON conversations(created_at);
+
+-- Message indexes
+CREATE INDEX IF NOT EXISTS idx_msg_conv ON messages(conversation_id);
+
+-- Blockchain tx log indexes
+CREATE INDEX IF NOT EXISTS idx_btx_wallet ON blockchain_tx_log(wallet_address);
+CREATE INDEX IF NOT EXISTS idx_btx_type ON blockchain_tx_log(tx_type);
+CREATE INDEX IF NOT EXISTS idx_btx_created ON blockchain_tx_log(created_at);
+
+-- AI query log indexes
+CREATE INDEX IF NOT EXISTS idx_ailog_wallet ON ai_query_log(wallet_address);
+CREATE INDEX IF NOT EXISTS idx_ailog_created ON ai_query_log(created_at);
+
+-- NFT indexes
+CREATE INDEX IF NOT EXISTS idx_nft_wallet ON nft_metadata(wallet_address);
+CREATE INDEX IF NOT EXISTS idx_nft_asset ON nft_metadata(asset_id);
+
+-- Session indexes
+CREATE INDEX IF NOT EXISTS idx_session_wallet ON sessions(wallet_address);
+CREATE INDEX IF NOT EXISTS idx_session_status ON sessions(status);
+
+-- ════════════════════════════════════════════════════════
+-- MARKETPLACE INDEXES
+-- ════════════════════════════════════════════════════════
+CREATE INDEX IF NOT EXISTS idx_creator_did ON creator_profiles(did);
+CREATE INDEX IF NOT EXISTS idx_agent_creator ON ai_agents(creator_wallet);
+CREATE INDEX IF NOT EXISTS idx_agent_category ON ai_agents(category);
+CREATE INDEX IF NOT EXISTS idx_agent_visibility ON ai_agents(visibility, is_active);
+CREATE INDEX IF NOT EXISTS idx_agent_uses ON ai_agents(total_uses DESC);
+CREATE INDEX IF NOT EXISTS idx_agent_rating ON ai_agents(avg_rating DESC);
+CREATE INDEX IF NOT EXISTS idx_agent_created ON ai_agents(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_agent_usage_agent ON ai_agent_usage(agent_id);
+CREATE INDEX IF NOT EXISTS idx_agent_usage_user ON ai_agent_usage(user_wallet);
+CREATE INDEX IF NOT EXISTS idx_agent_usage_created ON ai_agent_usage(created_at);
+CREATE INDEX IF NOT EXISTS idx_reviews_agent ON marketplace_reviews(agent_id);
+CREATE INDEX IF NOT EXISTS idx_earnings_creator ON creator_earnings_ledger(creator_wallet);
+CREATE INDEX IF NOT EXISTS idx_creator_apikeys_wallet ON creator_api_keys(creator_wallet);
+CREATE INDEX IF NOT EXISTS idx_pending_settlements_status ON pending_settlements(status);
+"""
+
+
+async def run_migrations():
+    """Runs all table creation and index creation SQL."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(SCHEMA_SQL)
+        await conn.execute(INDEXES_SQL)
+        await conn.execute("ALTER TABLE messages ADD COLUMN IF NOT EXISTS model TEXT;")
+
+
+# ────────────────────────────────────────────────────────
+# SESSION FUNCTIONS (Legacy compatibility)
+# ────────────────────────────────────────────────────────
+
+async def create_session(session_id: str, service_id: str, wallet_address: str,
+                         prompt: str, expires_at: str):
+    pool = await get_pool()
+    created_at = datetime.now(timezone.utc)
+    # Convert expires_at ISO string to datetime for asyncpg
+    if isinstance(expires_at, str):
+        expires_at_dt = datetime.fromisoformat(expires_at)
+    else:
+        expires_at_dt = expires_at
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO sessions(session_id, service_id, wallet_address, prompt, status, created_at, expires_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)""",
+            session_id, service_id, wallet_address, prompt, "pending", created_at, expires_at_dt
+        )
+
+
+async def get_session(session_id: str) -> Optional[dict]:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM sessions WHERE session_id = $1", session_id)
+        return dict(row) if row else None
+
+
+async def update_session_status(session_id: str, status: str):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE sessions SET status = $1 WHERE session_id = $2", status, session_id
+        )
+
+
+async def save_query_result(session_id: str, tx_group_id: str, ai_response: str, tokens_used: int):
+    completed_at = datetime.now(timezone.utc)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO query_log (session_id, tx_group_id, ai_response, tokens_used, completed_at)
+               VALUES ($1, $2, $3, $4, $5)""",
+            session_id, tx_group_id, ai_response, tokens_used, completed_at
+        )
+
+
+async def is_tx_already_used(tx_group_id: str) -> bool:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT 1 FROM query_log WHERE tx_group_id = $1", tx_group_id)
+        return row is not None
+
+
+# ────────────────────────────────────────────────────────
+# CONVERSATION FUNCTIONS
+# ────────────────────────────────────────────────────────
+
+async def create_conversation(conversation_id: str, service_id: str, wallet_address: str):
+    created_at = datetime.now(timezone.utc)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO conversations(conversation_id, service_id, wallet_address, created_at)
+               VALUES ($1, $2, $3, $4)""",
+            conversation_id, service_id, wallet_address, created_at
+        )
+
+
+async def mark_conversation_paid(conversation_id: str, tx_id: str):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE conversations SET paid = 1, tx_id = $1 WHERE conversation_id = $2",
+            tx_id, conversation_id
+        )
+
+
+async def get_conversation(conversation_id: str) -> Optional[dict]:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM conversations WHERE conversation_id = $1", conversation_id
+        )
+        return dict(row) if row else None
+
+
+async def delete_conversation(conversation_id: str):
+    """Delete a conversation and all its messages."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute("DELETE FROM messages WHERE conversation_id = $1", conversation_id)
+            await conn.execute("DELETE FROM conversations WHERE conversation_id = $1", conversation_id)
+
+async def get_user_analytics(wallet_address: str):
+    """Calculate usage analytics for a user."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        # Sum of motes spent in the last 30 days
+        spent_last_30 = await conn.fetchval(
+            """SELECT SUM(amount_motes) FROM blockchain_tx_log 
+               WHERE wallet_address = $1 AND tx_type = 'ai_usage' 
+               AND created_at > NOW() - INTERVAL '30 days'""",
+            wallet_address
+        ) or 0
+        
+        # Total tokens used in the last 30 days
+        tokens_last_30 = await conn.fetchval(
+            """SELECT SUM(total_tokens) FROM conversations 
+               WHERE wallet_address = $1 
+               AND created_at > NOW() - INTERVAL '30 days'""",
+            wallet_address
+        ) or 0
+        
+        # Average sessions per day (or total sessions)
+        total_sessions = await conn.fetchval(
+            "SELECT COUNT(*) FROM conversations WHERE wallet_address = $1",
+            wallet_address
+        ) or 0
+        
+        # Average spent per session
+        avg_per_session = spent_last_30 / total_sessions if total_sessions > 0 else 0
+        
+        return {
+            "spent_motes_30d": spent_last_30,
+            "spent_cspr_30d": spent_last_30 / 1_000_000_000,
+            "tokens_used_30d": tokens_last_30,
+            "total_sessions": total_sessions,
+            "avg_cspr_per_session": avg_per_session / 1_000_000_000
+        }
+
+async def add_message(conversation_id: str, role: str, content: str,
+                      tokens_used: int = 0, cost_usd: float = 0.0, model: str = None):
+    created_at = datetime.now(timezone.utc)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(
+                """INSERT INTO messages(conversation_id, role, content, tokens_used, cost_usd, model, created_at)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7)""",
+                conversation_id, role, content, tokens_used, cost_usd, model, created_at
+            )
+            await conn.execute(
+                """UPDATE conversations
+                   SET total_tokens = total_tokens + $1, total_cost_usd = total_cost_usd + $2
+                   WHERE conversation_id = $3""",
+                tokens_used, cost_usd, conversation_id
+            )
+
+
+async def get_conversation_messages(conversation_id: str) -> list[dict]:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT * FROM messages WHERE conversation_id = $1 ORDER BY id ASC",
+            conversation_id
+        )
+        return [dict(r) for r in rows]
+
+
+async def get_wallet_conversations(wallet_address: str, service_id: str = None, limit: int = 20, offset: int = 0) -> list[dict]:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        query = """
+            SELECT c.*, 
+                   (SELECT content FROM messages 
+                    WHERE conversation_id = c.conversation_id AND role = 'user' 
+                    ORDER BY id ASC LIMIT 1) as first_prompt,
+                   COALESCE(
+                       (SELECT name FROM services WHERE service_id = c.service_id),
+                       (SELECT name FROM ai_agents WHERE agent_id = c.service_id)
+                   ) as service_name
+            FROM conversations c
+        """
+        if service_id:
+            rows = await conn.fetch(
+                query + " WHERE c.wallet_address = $1 AND c.service_id = $2 ORDER BY c.created_at DESC LIMIT $3 OFFSET $4",
+                wallet_address, service_id, limit, offset
+            )
+        else:
+            rows = await conn.fetch(
+                query + " WHERE c.wallet_address = $1 ORDER BY c.created_at DESC LIMIT $2 OFFSET $3",
+                wallet_address, limit, offset
+            )
+        return [dict(r) for r in rows]
+
+
+# ────────────────────────────────────────────────────────
+# WALLET BALANCE — NOW ON-CHAIN (stubs for backward compat)
+# ────────────────────────────────────────────────────────
+
+async def get_wallet_balance(wallet_address: str) -> int:
+    """
+    Get user balance from the smart contract (on-chain).
+    Falls back to 0 if contract is not deployed or unreachable.
+    """
+    try:
+        from app.services.csprrand_service import get_escrow_balance
+        return get_escrow_balance(wallet_address)
+    except Exception:
+        return 0
+
+
+async def add_wallet_balance(wallet_address: str, amount_motes: int):
+    """
+    DEPRECATED: Balances are now on-chain.
+    This is a no-op kept for backward compatibility.
+    Deposits go through the smart contract deposit() method.
+    """
+    pass
+
+
+async def deduct_wallet_balance(wallet_address: str, amount_motes: int):
+    """
+    DEPRECATED: Deductions happen on-chain via request_service().
+    This is a no-op kept for backward compatibility.
+    """
+    pass
+
+
+# ────────────────────────────────────────────────────────
+# DOUBLE-SPEND PROTECTION (cache layer)
+# ────────────────────────────────────────────────────────
+
+async def check_deposit_tx_used(tx_id: str) -> bool:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT 1 FROM used_deposits WHERE tx_id = $1", tx_id)
+        return row is not None
+
+
+async def mark_deposit_tx_used(tx_id: str, wallet_address: str, amount_motes: int):
+    credited_at = datetime.now(timezone.utc)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO used_deposits (tx_id, wallet_address, amount_motes, credited_at)
+               VALUES ($1, $2, $3, $4)
+               ON CONFLICT (tx_id) DO NOTHING""",
+            tx_id, wallet_address, amount_motes, credited_at
+        )
+
+
+# ────────────────────────────────────────────────────────
+# BLOCKCHAIN TRANSACTION LOG (Audit Trail)
+# ────────────────────────────────────────────────────────
+
+async def log_transaction(wallet_address: str, tx_type: str, amount_motes: int,
+                          on_chain_tx_id: str = None, description: str = None):
+    """Record every credit/debit in an immutable ledger for full audit trail."""
+    created_at = datetime.now(timezone.utc)
+    metadata_val = json.dumps({"description": description}) if description else "{}"
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO blockchain_tx_log
+               (wallet_address, tx_type, amount_motes, on_chain_tx_id, metadata, created_at)
+               VALUES ($1, $2, $3, $4, $5::jsonb, $6)""",
+            wallet_address, tx_type, amount_motes, on_chain_tx_id, metadata_val, created_at
+        )
+
+
+async def get_transaction_ledger(wallet_address: str, limit: int = 50) -> list[dict]:
+    """Fetch the transaction ledger for a wallet (most recent first)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT id, wallet_address, tx_type, amount_motes, on_chain_tx_id,
+                      metadata, created_at
+               FROM blockchain_tx_log
+               WHERE wallet_address = $1
+               ORDER BY id DESC LIMIT $2""",
+            wallet_address, limit
+        )
+        result = []
+        for r in rows:
+            d = dict(r)
+            # Convert metadata from JSON to include description for backward compat
+            if d.get("metadata") and isinstance(d["metadata"], dict):
+                d["description"] = d["metadata"].get("description", "")
+            else:
+                d["description"] = ""
+            result.append(d)
+        return result
+
+
+# ────────────────────────────────────────────────────────
+# AI QUERY LOG
+# ────────────────────────────────────────────────────────
+
+async def log_ai_query(wallet_address: str, service_id: str,
+                       prompt_hash: str = None, response_hash: str = None,
+                       tokens_used: int = 0, on_chain_proof_tx: str = None,
+                       session_id: str = None, conversation_id: str = None,
+                       metadata: dict = None):
+    """Log AI query for analytics and proof cross-referencing."""
+    created_at = datetime.now(timezone.utc)
+    meta_str = json.dumps(metadata) if metadata else "{}"
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO ai_query_log
+               (session_id, conversation_id, wallet_address, service_id,
+                prompt_hash, response_hash, tokens_used, on_chain_proof_tx, metadata, created_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10)""",
+            session_id, conversation_id, wallet_address, service_id,
+            prompt_hash, response_hash, tokens_used, on_chain_proof_tx, meta_str, created_at
+        )
+
+
+# ────────────────────────────────────────────────────────
+# NFT METADATA
+# ────────────────────────────────────────────────────────
+
+async def save_nft_metadata(asset_id: int, wallet_address: str, prompt: str,
+                            prompt_hash: str = None, image_hash: str = None,
+                            image_url: str = None, metadata_uri: str = None,
+                            on_chain_tx_id: str = None, metadata: dict = None):
+    """Store NFT metadata off-chain for fast retrieval."""
+    created_at = datetime.now(timezone.utc)
+    meta_str = json.dumps(metadata) if metadata else "{}"
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO nft_metadata
+               (asset_id, wallet_address, prompt, prompt_hash, image_hash,
+                image_url, metadata_uri, on_chain_tx_id, metadata, created_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10)
+               ON CONFLICT (asset_id) DO UPDATE SET
+                   image_url = EXCLUDED.image_url,
+                   metadata_uri = EXCLUDED.metadata_uri,
+                   on_chain_tx_id = EXCLUDED.on_chain_tx_id""",
+            asset_id, wallet_address, prompt, prompt_hash, image_hash,
+            image_url, metadata_uri, on_chain_tx_id, meta_str, created_at
+        )
+
+
+# ────────────────────────────────────────────────────────
+# SERVICES REGISTRY (off-chain cache of on-chain data)
+# ────────────────────────────────────────────────────────
+
+async def upsert_service(service_id: str, name: str, description: str,
+                         price_input_motes: int, price_output_motes: int,
+                         creator_address: str = None, example_prompt: str = None,
+                         system_prompt: str = None):
+    """Insert or update a service in the off-chain registry."""
+    now = datetime.now(timezone.utc)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO services
+               (service_id, name, description, price_input_motes, price_output_motes,
+                creator_address, example_prompt, system_prompt, created_at, updated_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
+               ON CONFLICT (service_id) DO UPDATE SET
+                   name = EXCLUDED.name,
+                   description = EXCLUDED.description,
+                   price_input_motes = EXCLUDED.price_input_motes,
+                   price_output_motes = EXCLUDED.price_output_motes,
+                   creator_address = EXCLUDED.creator_address,
+                   example_prompt = EXCLUDED.example_prompt,
+                   system_prompt = EXCLUDED.system_prompt,
+                   updated_at = EXCLUDED.updated_at""",
+            service_id, name, description, price_input_motes, price_output_motes,
+            creator_address, example_prompt, system_prompt, now
+        )
+
+
+async def get_all_services() -> list[dict]:
+    """Get all active services from the off-chain registry."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT * FROM services WHERE is_active = TRUE ORDER BY created_at ASC"
+        )
+        return [dict(r) for r in rows]
+
+
+async def seed_default_services():
+    """Seed the services registry with default catalog entries from ai_service.py."""
+    from app.services.ai_service import SERVICE_CATALOG
+    for sid, svc in SERVICE_CATALOG.items():
+        await upsert_service(
+            service_id=sid,
+            name=svc["name"],
+            description=svc["description"],
+            price_input_motes=svc["price_input_motes"],
+            price_output_motes=svc["price_output_motes"],
+            example_prompt=svc.get("example_prompt", ""),
+            system_prompt=svc.get("system_prompt", ""),
+        )
+
+
+# ────────────────────────────────────────────────────────
+# USERS
+# ────────────────────────────────────────────────────────
+
+async def create_user(wallet_address: str, name: str, dob: str, email: str):
+    now = datetime.now(timezone.utc)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO users(wallet_address, name, dob, email, created_at)
+               VALUES ($1, $2, $3, $4, $5)""",
+            wallet_address, name, dob, email, now
+        )
+
+async def get_user(wallet_address: str) -> Optional[dict]:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM users WHERE wallet_address = $1", wallet_address)
+        return dict(row) if row else None
+
+
+# ────────────────────────────────────────────────────────
+# SIWA NONCES
+# ────────────────────────────────────────────────────────
+
+async def save_nonce(wallet_address: str, nonce: str, expires_at: datetime):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM siwa_nonces WHERE expires_at < $1", datetime.now(timezone.utc))
+        await conn.execute(
+            """INSERT INTO siwa_nonces(wallet_address, nonce, expires_at)
+               VALUES ($1, $2, $3)
+               ON CONFLICT (wallet_address) DO UPDATE SET
+                   nonce = EXCLUDED.nonce,
+                   expires_at = EXCLUDED.expires_at""",
+            wallet_address, nonce, expires_at
+        )
+
+async def get_nonce(wallet_address: str) -> Optional[dict]:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM siwa_nonces WHERE wallet_address = $1", wallet_address)
+        return dict(row) if row else None
+
+async def delete_nonce(wallet_address: str):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM siwa_nonces WHERE wallet_address = $1", wallet_address)
+
+
+# ════════════════════════════════════════════════════════
+# MARKETPLACE — CREATOR PROFILES
+# ════════════════════════════════════════════════════════
+
+async def create_creator_profile(wallet_address: str, display_name: str,
+                                  bio: str = '', avatar_url: str = '',
+                                  social_twitter: str = '', social_github: str = '',
+                                  social_website: str = ''):
+    """Create a new creator profile with auto-generated DID."""
+    did = f"did:payperai:{wallet_address}"
+    now = datetime.now(timezone.utc)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO creator_profiles
+               (wallet_address, did, display_name, bio, avatar_url,
+                social_twitter, social_github, social_website, created_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+               ON CONFLICT (wallet_address) DO UPDATE SET
+                   display_name = EXCLUDED.display_name,
+                   bio = EXCLUDED.bio,
+                   avatar_url = EXCLUDED.avatar_url,
+                   social_twitter = EXCLUDED.social_twitter,
+                   social_github = EXCLUDED.social_github,
+                   social_website = EXCLUDED.social_website""",
+            wallet_address, did, display_name, bio, avatar_url,
+            social_twitter, social_github, social_website, now
+        )
+    return {"wallet_address": wallet_address, "did": did}
+
+
+async def get_creator_profile(wallet_address: str) -> Optional[dict]:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM creator_profiles WHERE wallet_address = $1", wallet_address
+        )
+        return dict(row) if row else None
+
+
+async def get_creator_by_did(did: str) -> Optional[dict]:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM creator_profiles WHERE did = $1", did)
+        return dict(row) if row else None
+
+
+async def update_creator_earnings_total(wallet_address: str, amount_motes: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """UPDATE creator_profiles
+               SET total_earnings_motes = total_earnings_motes + $1
+               WHERE wallet_address = $2""",
+            amount_motes, wallet_address
+        )
+
+
+# ════════════════════════════════════════════════════════
+# MARKETPLACE — AI AGENTS
+# ════════════════════════════════════════════════════════
+
+async def create_ai_agent(agent_id: str, creator_wallet: str, name: str,
+                           description: str, category: str, tags: str,
+                           thumbnail_url: str, provider: str, model: str,
+                           system_prompt: str, temperature: float, max_tokens: int,
+                           price_per_request_motes: int,
+                           price_input_motes: int, price_output_motes: int,
+                           pricing_model: str, visibility: str = 'public'):
+    now = datetime.now(timezone.utc)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(
+                """INSERT INTO ai_agents
+                   (agent_id, creator_wallet, name, description, category, tags,
+                    thumbnail_url, provider, model, system_prompt, temperature,
+                    max_tokens, price_per_request_motes, price_input_motes,
+                    price_output_motes, pricing_model, visibility, created_at, updated_at)
+                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$18)""",
+                agent_id, creator_wallet, name, description, category, tags,
+                thumbnail_url, provider, model, system_prompt, temperature,
+                max_tokens, price_per_request_motes, price_input_motes,
+                price_output_motes, pricing_model, visibility, now
+            )
+            await conn.execute(
+                "UPDATE creator_profiles SET total_agents = total_agents + 1 WHERE wallet_address = $1",
+                creator_wallet
+            )
+
+
+async def get_ai_agent(agent_id: str) -> Optional[dict]:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM ai_agents WHERE agent_id = $1", agent_id)
+        return dict(row) if row else None
+
+
+async def update_ai_agent(agent_id: str, **kwargs):
+    """Update specific fields of an AI agent."""
+    if not kwargs:
+        return
+    now = datetime.now(timezone.utc)
+    kwargs['updated_at'] = now
+    set_parts = []
+    values = []
+    for i, (key, val) in enumerate(kwargs.items(), 1):
+        set_parts.append(f"{key} = ${i}")
+        values.append(val)
+    values.append(agent_id)
+    query = f"UPDATE ai_agents SET {', '.join(set_parts)} WHERE agent_id = ${len(values)}"
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(query, *values)
+
+
+async def deactivate_ai_agent(agent_id: str):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE ai_agents SET is_active = FALSE, updated_at = NOW() WHERE agent_id = $1",
+            agent_id
+        )
+
+
+async def list_marketplace_agents(category: str = None, search: str = None,
+                                   sort_by: str = 'created_at', limit: int = 50,
+                                   offset: int = 0) -> list[dict]:
+    """Browse public active agents with optional filtering and sorting."""
+    pool = await get_pool()
+    conditions = ["visibility = 'public'", "is_active = TRUE"]
+    params = []
+    idx = 1
+
+    if category and category != 'all':
+        conditions.append(f"category = ${idx}")
+        params.append(category)
+        idx += 1
+
+    if search:
+        conditions.append(f"(name ILIKE ${idx} OR description ILIKE ${idx})")
+        params.append(f"%{search}%")
+        idx += 1
+
+    where = " AND ".join(conditions)
+
+    # Validate sort
+    allowed_sorts = {
+        'created_at': 'created_at DESC',
+        'total_uses': 'total_uses DESC',
+        'avg_rating': 'avg_rating DESC',
+        'price': 'price_per_request_motes ASC',
+    }
+    order = allowed_sorts.get(sort_by, 'created_at DESC')
+
+    params.extend([limit, offset])
+    query = f"""SELECT * FROM ai_agents WHERE {where}
+                ORDER BY {order} LIMIT ${idx} OFFSET ${idx + 1}"""
+
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(query, *params)
+        return [dict(r) for r in rows]
+
+
+async def get_creator_agents(creator_wallet: str) -> list[dict]:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT * FROM ai_agents WHERE creator_wallet = $1 ORDER BY created_at DESC",
+            creator_wallet
+        )
+        return [dict(r) for r in rows]
+
+
+async def get_trending_agents(limit: int = 10) -> list[dict]:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT * FROM ai_agents
+               WHERE visibility = 'public' AND is_active = TRUE
+               ORDER BY total_uses DESC, avg_rating DESC
+               LIMIT $1""",
+            limit
+        )
+        return [dict(r) for r in rows]
+
+
+async def increment_agent_usage(agent_id: str, tokens: int, revenue_motes: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """UPDATE ai_agents SET
+                total_uses = total_uses + 1,
+                total_tokens_served = total_tokens_served + $1,
+                total_revenue_motes = total_revenue_motes + $2,
+                updated_at = NOW()
+               WHERE agent_id = $3""",
+            tokens, revenue_motes, agent_id
+        )
+
+
+# ════════════════════════════════════════════════════════
+# MARKETPLACE — CREATOR API KEYS (encrypted)
+# ════════════════════════════════════════════════════════
+
+async def save_creator_api_key(creator_wallet: str, provider: str,
+                                encrypted_key: str, key_hint: str = ''):
+    now = datetime.now(timezone.utc)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO creator_api_keys (creator_wallet, provider, encrypted_key, key_hint, created_at)
+               VALUES ($1, $2, $3, $4, $5)
+               ON CONFLICT (creator_wallet, provider) DO UPDATE SET
+                   encrypted_key = EXCLUDED.encrypted_key,
+                   key_hint = EXCLUDED.key_hint""",
+            creator_wallet, provider, encrypted_key, key_hint, now
+        )
+
+
+async def get_creator_api_key(creator_wallet: str, provider: str) -> Optional[str]:
+    """Returns the encrypted key blob, or None."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT encrypted_key FROM creator_api_keys WHERE creator_wallet = $1 AND provider = $2",
+            creator_wallet, provider
+        )
+        return row['encrypted_key'] if row else None
+
+
+async def get_creator_api_key_status(creator_wallet: str) -> list[dict]:
+    """Returns which providers have keys saved (without revealing actual keys)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT provider, key_hint, created_at FROM creator_api_keys WHERE creator_wallet = $1",
+            creator_wallet
+        )
+        return [dict(r) for r in rows]
+
+
+async def delete_creator_api_key(creator_wallet: str, provider: str):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "DELETE FROM creator_api_keys WHERE creator_wallet = $1 AND provider = $2",
+            creator_wallet, provider
+        )
+
+
+# ════════════════════════════════════════════════════════
+# MARKETPLACE — AGENT USAGE LOGS
+# ════════════════════════════════════════════════════════
+
+async def log_agent_usage(agent_id: str, user_wallet: str, prompt_hash: str,
+                           response_hash: str, tokens_input: int, tokens_output: int,
+                           cost_motes: int, creator_cut_motes: int,
+                           platform_cut_motes: int):
+    now = datetime.now(timezone.utc)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO ai_agent_usage
+               (agent_id, user_wallet, prompt_hash, response_hash, tokens_input,
+                tokens_output, cost_motes, creator_cut_motes,
+                platform_cut_motes, created_at)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)""",
+            agent_id, user_wallet, prompt_hash, response_hash, tokens_input,
+            tokens_output, cost_motes, creator_cut_motes,
+            platform_cut_motes, now
+        )
+
+
+async def get_agent_usage_stats(agent_id: str) -> dict:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """SELECT COUNT(*) as total_uses,
+                      COALESCE(SUM(tokens_input + tokens_output), 0) as total_tokens,
+                      COALESCE(SUM(cost_motes), 0) as total_revenue,
+                      COUNT(DISTINCT user_wallet) as unique_users
+               FROM ai_agent_usage WHERE agent_id = $1""",
+            agent_id
+        )
+        return dict(row) if row else {}
+
+
+async def get_creator_analytics(creator_wallet: str) -> dict:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """SELECT COUNT(*) as total_uses,
+                      COALESCE(SUM(tokens_input + tokens_output), 0) as total_tokens,
+                      COALESCE(SUM(creator_cut_motes), 0) as total_earnings,
+                      COUNT(DISTINCT user_wallet) as unique_users,
+                      COUNT(DISTINCT a.agent_id) as active_agents
+               FROM ai_agent_usage au
+               JOIN ai_agents a ON au.agent_id = a.agent_id
+               WHERE a.creator_wallet = $1""",
+            creator_wallet
+        )
+        return dict(row) if row else {}
+
+
+# ════════════════════════════════════════════════════════
+# MARKETPLACE — REVIEWS
+# ════════════════════════════════════════════════════════
+
+async def create_review(agent_id: str, user_wallet: str, rating: int,
+                         review_text: str = ''):
+    now = datetime.now(timezone.utc)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(
+                """INSERT INTO marketplace_reviews (agent_id, user_wallet, rating, review_text, created_at)
+                   VALUES ($1, $2, $3, $4, $5)
+                   ON CONFLICT (agent_id, user_wallet) DO UPDATE SET
+                       rating = EXCLUDED.rating,
+                       review_text = EXCLUDED.review_text""",
+                agent_id, user_wallet, rating, review_text, now
+            )
+            # Recalculate average rating
+            stats = await conn.fetchrow(
+                "SELECT AVG(rating) as avg_r, COUNT(*) as cnt FROM marketplace_reviews WHERE agent_id = $1",
+                agent_id
+            )
+            await conn.execute(
+                "UPDATE ai_agents SET avg_rating = $1, review_count = $2 WHERE agent_id = $3",
+                float(stats['avg_r'] or 0), stats['cnt'], agent_id
+            )
+
+
+async def get_agent_reviews(agent_id: str, limit: int = 20) -> list[dict]:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT r.*, u.name as user_name
+               FROM marketplace_reviews r
+               LEFT JOIN users u ON r.user_wallet = u.wallet_address
+               WHERE r.agent_id = $1
+               ORDER BY r.created_at DESC LIMIT $2""",
+            agent_id, limit
+        )
+        return [dict(r) for r in rows]
+
+
+# ════════════════════════════════════════════════════════
+# MARKETPLACE — CREATOR EARNINGS LEDGER
+# ════════════════════════════════════════════════════════
+
+async def log_creator_earning(creator_wallet: str, agent_id: str,
+                               amount_motes: int, tx_type: str = 'earning',
+                               on_chain_tx_id: str = None):
+    now = datetime.now(timezone.utc)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO creator_earnings_ledger (creator_wallet, agent_id, amount_motes, tx_type, on_chain_tx_id, created_at)
+               VALUES ($1, $2, $3, $4, $5, $6)""",
+            creator_wallet, agent_id, amount_motes, tx_type, on_chain_tx_id, now
+        )
+
+
+async def get_creator_earnings_history(creator_wallet: str, limit: int = 50) -> list[dict]:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT el.*, a.name as agent_name
+               FROM creator_earnings_ledger el
+               LEFT JOIN ai_agents a ON el.agent_id = a.agent_id
+               WHERE el.creator_wallet = $1
+               ORDER BY el.created_at DESC LIMIT $2""",
+            creator_wallet, limit
+        )
+        return [dict(r) for r in rows]
+
+
+async def get_earnings_by_agent(creator_wallet: str) -> list[dict]:
+    """Return per-agent earnings breakdown for a creator."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT
+                a.agent_id,
+                a.name as agent_name,
+                a.category,
+                COALESCE(SUM(CASE WHEN el.tx_type = 'earning' THEN el.amount_motes ELSE 0 END), 0) as total_earned_motes,
+                COUNT(CASE WHEN el.tx_type = 'earning' THEN 1 END) as total_uses,
+                MAX(el.created_at) as last_earned_at
+               FROM ai_agents a
+               LEFT JOIN creator_earnings_ledger el ON el.agent_id = a.agent_id
+               WHERE a.creator_wallet = $1
+               GROUP BY a.agent_id, a.name, a.category
+               ORDER BY total_earned_motes DESC""",
+            creator_wallet
+        )
+        return [dict(r) for r in rows]
+
+
+async def get_creator_earnings_summary(creator_wallet: str) -> dict:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """SELECT
+                COALESCE(SUM(CASE WHEN tx_type = 'earning' THEN amount_motes ELSE 0 END), 0) as total_earned,
+                COALESCE(SUM(CASE WHEN tx_type = 'withdrawal' THEN amount_motes ELSE 0 END), 0) as total_withdrawn
+               FROM creator_earnings_ledger WHERE creator_wallet = $1""",
+            creator_wallet
+        )
+        total_earned = row['total_earned'] if row else 0
+        total_withdrawn = row['total_withdrawn'] if row else 0
+        return {
+            "total_earned_motes": total_earned,
+            "total_withdrawn_motes": total_withdrawn,
+            "available_motes": total_earned - total_withdrawn,
+        }
+
+
+# ────────────────────────────────────────────────────────
+# PENDING SETTLEMENTS
+# ────────────────────────────────────────────────────────
+
+async def create_pending_settlement(user_wallet: str, service_id: str, amount_motes: int) -> int:
+    now = datetime.now(timezone.utc)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """INSERT INTO pending_settlements (user_wallet, service_id, amount_motes, status, created_at, updated_at)
+               VALUES ($1, $2, $3, 'pending', $4, $4) RETURNING id""",
+            user_wallet, service_id, amount_motes, now
+        )
+        return row['id']
+
+async def update_pending_settlement(settlement_id: int, status: str, error_reason: str = None):
+    now = datetime.now(timezone.utc)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """UPDATE pending_settlements
+               SET status = $1, error_reason = $2, updated_at = $3,
+                   retry_count = retry_count + (CASE WHEN $1 = 'failed' THEN 1 ELSE 0 END)
+               WHERE id = $4""",
+            status, error_reason, now, settlement_id
+        )
+
+# ────────────────────────────────────────────────────────
+# INIT (called from main.py lifespan)
+# ────────────────────────────────────────────────────────
+
+async def init_db():
+    """
+    Initialize the PostgreSQL database:
+    1. Create connection pool
+    2. Run schema migrations
+    3. Seed default services
+    """
+    from app.config import settings
+    await init_pool(settings.database_url)
+    await run_migrations()
+    await seed_default_services()
+    print("[OK] PostgreSQL database initialized successfully")
+
+
+# ────────────────────────────────────────────────────────
+# X402 PAYMENT SESSIONS
+# ────────────────────────────────────────────────────────
+
+async def db_create_payment_session(token: str, payer_wallet: str, initial_units: int, tx_hash: str):
+    pool = await get_pool()
+    now = datetime.now(timezone.utc)
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO x402_payment_sessions 
+               (token, payer_wallet, initial_units, remaining_units, tx_hash, created_at, last_used_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)""",
+            token, payer_wallet, initial_units, initial_units, tx_hash, now, now
+        )
+
+async def db_get_payment_session(token: str) -> Optional[dict]:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM x402_payment_sessions WHERE token = $1",
+            token
+        )
+        return dict(row) if row else None
+
+async def db_deduct_payment_session(token: str, cost_units: int) -> Optional[dict]:
+    pool = await get_pool()
+    now = datetime.now(timezone.utc)
+    async with pool.acquire() as conn:
+        # We use a RETURNING clause to update and fetch in one query
+        row = await conn.fetchrow(
+            """UPDATE x402_payment_sessions 
+               SET remaining_units = remaining_units - $2,
+                   messages_count = messages_count + 1,
+                   last_used_at = $3
+               WHERE token = $1 AND remaining_units >= $2
+               RETURNING *""",
+            token, cost_units, now
+        )
+        return dict(row) if row else None
+
+async def db_invalidate_payment_session(token: str):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM x402_payment_sessions WHERE token = $1", token)
