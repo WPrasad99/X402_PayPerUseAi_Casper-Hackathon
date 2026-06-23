@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "pay-per-ai-contract"
+version = "0.1.0"
+description = "Algorand smart contract for PayPerAI using Puya"
+authors = ["Admin"]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+algokit-utils = "^2.0.0"
+algorand-python = "^1.0.0"
+python-dotenv = "^1.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
