@@ -1,0 +1,27 @@
+══════════════════════════════════════════════════════════════
+📋  DEPLOYMENT COMPLETE
+══════════════════════════════════════════════════════════════
+DEPLOY_HASH=430676e50ba95acc2f4d72850a60cf6ec7c4e792b3f252ad9ffcf2b05eeffdba
+CONTRACT_PACKAGE_HASH=CHECK_EXPLORER_NAMED_KEYS
+YOUR_ACCOUNT_HASH=bac0c10fade6c68efbe4252ae988f51f3b1b6b6871dfb50ece9665328563c730
+
+# === Paste into backend/.env ===
+CEP18_CONTRACT_PACKAGE_HASH=REPLACE_AFTER_CHECKING_EXPLORER
+CEP18_TOKEN_NAME=PayAIToken
+CEP18_TOKEN_SYMBOL=PAIT
+CEP18_TOKEN_DECIMALS=2
+CEP18_TOKEN_VERSION=1
+PLATFORM_ACCOUNT_HASH=02bac0c10fade6c68efbe4252ae988f51f3b1b6b6871dfb50ece9665328563c730
+CSPR_X402_API_KEY=019f1e23-80a0-774f-b5fe-d3df694aef9a
+CASPER_NETWORK=casper:casper-test
+CASPER_NODE_RPC_URL=https://node.testnet.cspr.cloud
+
+# === Paste into frontend/.env ===
+VITE_CEP18_CONTRACT_HASH=REPLACE_AFTER_CHECKING_EXPLORER
+VITE_CEP18_TOKEN_NAME=PayAIToken
+VITE_CEP18_TOKEN_SYMBOL=PAIT
+VITE_CEP18_TOKEN_DECIMALS=2
+VITE_CASPER_NETWORK=casper:casper-test
+
+Explorer account: https://testnet.cspr.live/account/account-hash-bac0c10fade6c68efbe4252ae988f51f3b1b6b6871dfb50ece9665328563c730
+══════════════════════════════════════════════════════════════
