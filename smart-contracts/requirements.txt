@@ -1,0 +1,6 @@
+algokit
+algokit-utils
+algorand-python
+pytest
+pytest-asyncio
+python-dotenv
