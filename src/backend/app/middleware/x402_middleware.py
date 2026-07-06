@@ -53,9 +53,10 @@ PROTECTED_ROUTES = {
 FREE_ROUTES = {
     "/health", "/docs", "/openapi.json", "/redoc",
     "/api/v1/auth", "/api/v1/users", "/api/v1/services",
-    "/api/v1/marketplace", "/api/v1/agents", "/api/v1/creators",
+    "/api/v1/marketplace", "/api/v1/creators",
     "/api/v1/wallet", "/api/v1/payment",
     "/api/v1/session", "/api/v1/conversations",
+    "/api/v1/agents/marketplace", "/api/v1/agents/trending", "/api/v1/agents/categories"
 }
 
 # Estimated cost per chat message for session deduction (before we know real token count)
@@ -243,6 +244,11 @@ class X402PaymentMiddleware(BaseHTTPMiddleware):
         for prefix, config in PROTECTED_ROUTES.items():
             if path.startswith(prefix):
                 return config
+                
+        # Custom agent chat check
+        if path.startswith("/api/v1/agents/") and path.endswith("/chat"):
+            return (100_000_000, "Custom AI Agent Chat")
+            
         return None
     
     def _payment_required_response(
