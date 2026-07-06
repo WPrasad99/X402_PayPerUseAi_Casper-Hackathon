@@ -19,6 +19,8 @@ import {
   signCasperTransferDeploy
 } from './casperWallet';
 
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '';
+
 // ── Configuration ─────────────────────────────────────────────────────────────
 const PAYMENT_CONFIG = {
   tokenName: import.meta.env.VITE_CEP18_TOKEN_NAME || 'CSPR',
@@ -105,7 +107,7 @@ function generateValidityWindow(timeoutSeconds = 300) {
 
 async function getPayerAccountHash(publicKey) {
   try {
-    const resp = await fetch(`/api/v1/wallet/account-hash/${publicKey}`);
+    const resp = await fetch(`${BASE_URL}/api/v1/wallet/account-hash/${publicKey}`);
     if (resp.ok) {
       const data = await resp.json();
       return data.accountHash;
@@ -210,7 +212,7 @@ async function createPaymentSession(paymentData, x402Options = {}) {
     x402Options.onPaymentSettling?.(); // Notify UI to show loading spinner
 
     // Send to backend to broadcast and await confirmation (takes ~15 seconds)
-    const sessionResp = await fetch('/api/v1/payment/session/create-onchain', {
+    const sessionResp = await fetch(`${BASE_URL}/api/v1/payment/session/create-onchain`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -274,7 +276,7 @@ async function createPaymentSession(paymentData, x402Options = {}) {
   
     emitPaymentStatus({ type: 'settling', amount: displayAmount });
   
-    const sessionResp = await fetch('/api/v1/payment/session/create', {
+    const sessionResp = await fetch(`${BASE_URL}/api/v1/payment/session/create`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -491,7 +493,7 @@ let _cachedPaymentConfig = null;
 export async function getPaymentConfig() {
   if (_cachedPaymentConfig) return _cachedPaymentConfig;
   try {
-    const resp = await fetch('/api/v1/payment/config');
+    const resp = await fetch(`${BASE_URL}/api/v1/payment/config`);
     if (resp.ok) {
       _cachedPaymentConfig = await resp.json();
       return _cachedPaymentConfig;
