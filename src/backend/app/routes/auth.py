@@ -31,12 +31,11 @@ def verify_casper_signature(public_key: str, message: str, signature_hex: str) -
     Public key format: "01<64hex>" for ED25519
     """
     try:
-        from nacl.signing import VerifyKey
-        from nacl.exceptions import BadSignatureError
-        
         # Strip the key algorithm prefix (01 = ED25519, 02 = SECP256K1)
         if public_key.startswith("01"):
             pk_bytes = bytes.fromhex(public_key[2:])
+            from nacl.signing import VerifyKey
+            from nacl.exceptions import BadSignatureError
         elif public_key.startswith("02"):
             # SECP256K1 support for Hackathon
             try:
