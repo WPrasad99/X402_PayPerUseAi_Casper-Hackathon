@@ -1042,14 +1042,24 @@ async def save_creator_api_key(creator_wallet: str, provider: str,
     now = datetime.now(timezone.utc)
     pool = await get_pool()
     async with pool.acquire() as conn:
-        await conn.execute(
-            """INSERT INTO creator_api_keys (creator_wallet, provider, encrypted_key, key_hint, created_at)
-               VALUES ($1, $2, $3, $4, $5)
-               ON CONFLICT (creator_wallet, provider) DO UPDATE SET
-                   encrypted_key = EXCLUDED.encrypted_key,
-                   key_hint = EXCLUDED.key_hint""",
-            creator_wallet, provider, encrypted_key, key_hint, now
+        # Fallback to SELECT then UPDATE/INSERT to avoid Postgres constraint errors if schema wasn't migrated
+        row = await conn.fetchrow(
+            "SELECT id FROM creator_api_keys WHERE creator_wallet = $1 AND provider = $2",
+            creator_wallet, provider
         )
+        if row:
+            await conn.execute(
+                """UPDATE creator_api_keys 
+                   SET encrypted_key = $1, key_hint = $2 
+                   WHERE id = $3""",
+                encrypted_key, key_hint, row['id']
+            )
+        else:
+            await conn.execute(
+                """INSERT INTO creator_api_keys (creator_wallet, provider, encrypted_key, key_hint, created_at)
+                   VALUES ($1, $2, $3, $4, $5)""",
+                creator_wallet, provider, encrypted_key, key_hint, now
+            )
 
 
 async def get_creator_api_key(creator_wallet: str, provider: str) -> Optional[str]:
