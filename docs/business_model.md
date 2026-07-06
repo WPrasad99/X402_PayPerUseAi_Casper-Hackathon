@@ -8,17 +8,17 @@ You provide users direct access to top-tier AI models (OpenAI, Google, Llama, Qw
 * **The Flow:**
   - You pay the AI provider the raw wholesale cost in USD.
   - You charge the user a 3x marked-up price in USD.
-  - The Dynamic Oracle automatically converts this marked-up USD cost into ALGO at the exact moment of execution.
+  - The Dynamic Oracle automatically converts this marked-up USD cost into CSPR at the exact moment of execution.
 * **The Margin:** ~66.6% gross profit margin on every token processed through default models.
-* **Volatility Protection:** Because the platform calculates the 3x markup in USD *before* converting it to ALGO, your profit margin is protected against cryptocurrency price fluctuations.
+* **Volatility Protection:** Because the platform calculates the 3x markup in USD *before* converting it to CSPR, your profit margin is protected against cryptocurrency price fluctuations.
 
 ### 2. The Creator Marketplace (The 10% Platform Fee)
-The platform allows independent AI creators to deploy their own customized AI agents. This operates on a "Bring Your Own Key" (BYOK) model.
+The platform allows independent AI creators to deploy their own customized AI agents. This oCaspertes on a "Bring Your Own Key" (BYOK) model.
 
 * **The Flow:**
   - Creators connect their own API keys and pay their own API bills.
-  - Creators set their own usage price for their agent directly in ALGO.
-  - Users pay the creator in ALGO to use their agent.
+  - Creators set their own usage price for their agent directly in CSPR.
+  - Users pay the creator in CSPR to use their agent.
 * **The Margin:** The smart contract automatically intercepts a **10% platform transaction fee** on every single request before depositing the remaining 90% into the creator's wallet.
 * **Scalability:** Zero marginal cost to the platform. The creator bears the API costs and the volatility risk, while the platform collects pure volume-based revenue.
 

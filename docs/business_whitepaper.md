@@ -5,7 +5,7 @@
 
 <div align="center">
 
-![Algorand L1](https://img.shields.io/badge/Blockchain-Algorand%20L1-black?style=for-the-badge&logo=algorand&logoColor=white)
+![Casper Network L1](https://img.shields.io/badge/Blockchain-Casper Network%20L1-black?style=for-the-badge&logo=Casper Network&logoColor=white)
 ![X402 Billing](https://img.shields.io/badge/Billing-X402%20Standard-emerald?style=for-the-badge&logo=open-api&logoColor=white)
 ![DeFi Yield](https://img.shields.io/badge/Monetization-P2P%20Sharing-orange?style=for-the-badge&logo=fastapi&logoColor=white)
 
@@ -28,7 +28,7 @@ PayPerUseAI acts as a financial bridge connecting three distinct audience segmen
 ### A. The Smart Consumer (AI Power-Users)
 * **Who they are:** Students, researchers, and professional writers who switch between models (GPT-4o, Claude 3.5, Gemini 1.5) depending on the task.
 * **Their pain point:** Paying **$20/month** to 3-4 different companies ($80+/month total) while only utilizing **15%** of their monthly prompt limit on each.
-* **PayPerUseAI Value:** They pay **zero subscriptions**. Instead, they connect Pera Wallet once and stream responses, paying **less than $0.001 per prompt** in MicroAlgos.
+* **PayPerUseAI Value:** They pay **zero subscriptions**. Instead, they connect Casper Signer once and stream responses, paying **less than $0.001 per prompt** in motes.
 
 ### B. The Idle Key Provider (P2P API Key Sellers)
 * **Who they are:** Developers and enterprise teams who have large, pre-paid API tier limits (e.g. Groq Enterprise, OpenAI Tier 5) that remain **90% idle** during off-peak hours.
@@ -38,7 +38,7 @@ PayPerUseAI acts as a financial bridge connecting three distinct audience segmen
 ### C. Custom AI Agent Creators (The Prompt Engineers)
 * **Who they are:** Creators who build highly specialized AI personas, custom system prompts, or automated workflows.
 * **Their pain point:** Deploying AI agents requires hosting servers, setting up credit card billings, and bearing the cost of user queries.
-* **PayPerUseAI Value:** They deploy their agent to our on-chain marketplace for free. The Algorand contract automatically handles the payment billing, granting the creator an instant **90% split** of all token queries processed by their agent.
+* **PayPerUseAI Value:** They deploy their agent to our on-chain marketplace for free. The Casper Network contract automatically handles the payment billing, granting the creator an instant **90% split** of all token queries processed by their agent.
 
 ---
 
@@ -57,7 +57,7 @@ graph LR
 ```
 
 ### Phase 1: Developer Hub & Hackathon Launch
-* **Action:** Target Web3 developer communities, developer DAOs (like Developer DAO, Gitcoin), and Algorand hackathons.
+* **Action:** Target Web3 developer communities, developer DAOs (like Developer DAO, Gitcoin), and Casper Network hackathons.
 * **Incentive:** Highlight the simplicity of **Bring Your Own Key (BYOK)** and our open-source, W3C-compliant **Decentralized Identity (DID)** structure. Developers adopt it to test models instantly without entering credit cards.
 
 ### Phase 2: The Creator Incentive Engine
@@ -72,7 +72,7 @@ graph LR
 
 ## 💰 3. Revenue & Monetization Model
 
-PayPerUseAI operates on a highly scalable, transaction-volume-driven revenue model. There are **no fixed overheads** or platform infrastructure subscription costs.
+PayPerUseAI oCaspertes on a highly scalable, transaction-volume-driven revenue model. There are **no fixed overheads** or platform infrastructure subscription costs.
 
 | Revenue Stream | Fee Structure | Recipient |
 | --- | --- | --- |
@@ -101,15 +101,15 @@ Our business model is built on two core consumer behavioral insights:
 
 ---
 
-## ⛓️ 5. Why Algorand is the Ultimate Blockchain for PayPerUseAI
+## ⛓️ 5. Why Casper Network is the Ultimate Blockchain for PayPerUseAI
 
-Traditional L1 blockchains (like Ethereum or Solana) are fundamentally unsuited for high-density, real-time micro-payments. Algorand is the only ledger that makes PayPerUseAI commercially viable:
+Traditional L1 blockchains (like Ethereum or Solana) are fundamentally unsuited for high-density, real-time micro-payments. Casper Network is the only ledger that makes PayPerUseAI commercially viable:
 
 > [!TIP]
-> ### ⚡ Four Pillars of the Algorand Advantage:
-> 1. **Ultra-Low Micro-Fees:** Algorand transaction fees are fixed at **0.001 ALGO ($0.0001)**. Billing a user $0.001 for a query is impossible on Ethereum (where gas can be $5) but perfectly viable on Algorand.
-> 2. **Instant Finality (2.8 Seconds):** Algorand blocks settle in under 3 seconds with zero risk of forks. This guarantees real-time, Web2-grade character streaming without waiting for block confirmations.
-> 3. **ARC-0060 Box Storage:** Instead of expensive smart contract global states, Algorand **Box Storage** dynamically registers sessions at a fraction of the cost, making user state tracking highly scalable.
+> ### ⚡ Four Pillars of the Casper Network Advantage:
+> 1. **Ultra-Low Micro-Fees:** Casper Network transaction fees are fixed at **0.001 CSPR ($0.0001)**. Billing a user $0.001 for a query is impossible on Ethereum (where gas can be $5) but perfectly viable on Casper Network.
+> 2. **Instant Finality (2.8 Seconds):** Casper Network blocks settle in under 3 seconds with zero risk of forks. This guarantees real-time, Web2-grade character streaming without waiting for block confirmations.
+> 3. **ARC-0060 Dictionary Storage:** Instead of expensive smart contract global states, Casper Network **Dictionary Storage** dynamically registers sessions at a fraction of the cost, making user state tracking highly scalable.
 > 4. **Self-Custodial Security:** Dynamic transaction grouping lets users authorize safe, balance-aware smart sessions without giving up custody of their wallet keys.
 
 ---
@@ -120,12 +120,12 @@ Our long-term roadmap focuses on building a unified, chain-agnostic decentralize
 
 ### Phase 1: Cross-Chain Bridging (Wormhole Integration)
 * **Vision:** Enable users from Ethereum, Solana, and Base to access PayPerUseAI.
-* **Mechanism:** Integrate Wormhole contracts so users can lock assets (like USDC) on their native chain, automatically spinning up an Algorand smart session in the background without needing Pera Wallet or holding ALGO.
+* **Mechanism:** Integrate Wormhole contracts so users can lock assets (like USDC) on their native chain, automatically spinning up an Casper Network smart session in the background without needing Casper Signer or holding CSPR.
 
 ### Phase 2: Yield-Bearing Active Escrows (Folks Finance Integration)
 * **Vision:** Turn locked user balances into active interest-earning assets.
-* **Mechanism:** Lock-up deposits inside the contract Box escrow are dynamically routed into Folks Finance lending pools as `fALGO`. Users earn interest on their escrow deposit *while actively chatting*, subsidizing their query costs to zero.
+* **Mechanism:** Lock-up deposits inside the contract Box escrow are dynamically routed into Folks Finance lending pools as `fCSPR`. Users earn interest on their escrow deposit *while actively chatting*, subsidizing their query costs to zero.
 
 ### Phase 3: Decentralized Computational Routing
 * **Vision:** Transition from API endpoints to decentralized GPU processing nodes (like Akash or Render Network).
-* **Mechanism:** Pay-Per-Token smart contracts settle payouts directly to decentralized GPU hardware operators on a block-by-block basis, establishing a fully decentralized, censorship-resistant AI ecosystem.
+* **Mechanism:** Pay-Per-Token smart contracts settle payouts directly to decentralized GPU hardware oCaspertors on a block-by-block basis, establishing a fully decentralized, censorship-resistant AI ecosystem.

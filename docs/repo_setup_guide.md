@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Algorand](https://img.shields.io/badge/Algorand-Smart%20Contracts-black?style=for-the-badge&logo=algorand&logoColor=white)
+![Casper Network](https://img.shields.io/badge/Casper Network-Smart%20Contracts-black?style=for-the-badge&logo=Casper Network&logoColor=white)
 ![React](https://img.shields.io/badge/React.js-Frontend-blue?style=for-the-badge&logo=react&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-Backend-009688?style=for-the-badge&logo=fastapi&logoColor=white)
 ![Supabase](https://img.shields.io/badge/Supabase-Database-emerald?style=for-the-badge&logo=supabase&logoColor=white)
@@ -19,11 +19,11 @@ Before setting up locally, ensure you have installed the following system compon
 * **Node.js** (v18.x or later) & **npm**
 * **Python** (v3.10 or later) & **pip**
 * **PostgreSQL** (or access to a **Supabase** cloud database instance)
-* **Pera Wallet** installed on your mobile device (configured to **Testnet** with a funded account)
+* **Casper Signer** installed on your mobile device (configured to **Testnet** with a funded account)
 
 > [!TIP]
-> **Need Testnet Algos?**
-> You can claim free Testnet Algos instantly from the [Algorand Testnet Faucet](https://bank.testnet.algodev.network/) to fund your user wallet!
+> **Need Testnet CSPRs?**
+> You can claim free Testnet CSPRs instantly from the [Casper Network Testnet Faucet](https://bank.testnet.casper-rpcev.network/) to fund your user wallet!
 
 ---
 
@@ -34,7 +34,7 @@ Here is an architectural map of how the different project layers are distributed
 ```text
 Pay-Per-Use-Ai/
 ├── backend/            # FastAPI Backend & Orchestration Service
-├── contract/           # Algorand Smart Contract & Deployment Python files
+├── contract/           # Casper Network Smart Contract & Deployment Python files
 ├── docs/               # Architecture and Setup Guides
 ├── frontend/           # Vite + React (Neo-Brutalist Marketplace)
 └── vercel.json         # Root routing rewrite config for Vercel
@@ -53,7 +53,7 @@ python -m venv venv
 
 Activate the environment:
 > [!NOTE]
-> Select the activation command corresponding to your operating system:
+> Select the activation command corresponding to your oCasperting system:
 > * **Windows (PowerShell):** `.\venv\Scripts\Activate.ps1`
 > * **Windows (CMD):** `.\venv\Scripts\activate.bat`
 > * **macOS/Linux:** `source venv/bin/activate`
@@ -82,15 +82,15 @@ GROQ_API_KEY=your_groq_key
 HF_API_KEY=your_huggingface_key
 GEMINI_API_KEY=your_gemini_key
 
-# ── Algorand Network Configuration ──
-ALGORAND_NETWORK=testnet
-ALGOD_URL=https://testnet-api.algonode.cloud
-ALGOD_TOKEN=
-INDEXER_URL=https://testnet-idx.algonode.cloud
+# ── Casper Network Network Configuration ──
+CSPRRAND_NETWORK=testnet
+CSPRD_URL=https://testnet-api.CasperNode.cloud
+CSPRD_TOKEN=
+INDEXER_URL=https://testnet-idx.CasperNode.cloud
 
 # ── Deployed Contracts ──
-ALGORAND_APP_ID=762562501
-ALGORAND_APP_ID_V3=762551954
+CSPRRAND_APP_ID=762562501
+CSPRRAND_APP_ID_V3=762551954
 
 # ── Platform Wallet (receives payments) ──
 PLATFORM_WALLET_ADDRESS=B5BMUKJFHX6TKTSCIBVFOHJ76J4VG4PJ6C4YXSOPBTWVOVD22O3DDVYUNY

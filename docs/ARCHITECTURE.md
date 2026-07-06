@@ -4,30 +4,30 @@ This document provides a detailed, real-world architectural overview of the **Pa
 
 ## 1. High-Level Architecture Overview
 
-PayPerUseAI operates on a hybrid architecture combining a decentralized Web3 trust layer (Algorand Smart Contracts) with a high-performance Web2 backend (FastAPI + PostgreSQL). This hybrid approach ensures trustless financial transactions while maintaining lightning-fast, zero-latency AI streaming.
+PayPerUseAI oCaspertes on a hybrid architecture combining a decentralized Web3 trust layer (Casper Network Smart Contracts) with a high-performance Web2 backend (FastAPI + PostgreSQL). This hybrid approach ensures trustless financial transactions while maintaining lightning-fast, zero-latency AI streaming.
 
 ```mermaid
 graph TD
     %% Entities
     User[User / Client App]
     Frontend[React Frontend]
-    PeraWallet[Pera Wallet / Defly]
+    Casper Signer[Casper Signer / Defly]
     
     Backend[FastAPI Backend]
     PostgreSQL[(PostgreSQL DB)]
     AIProviders((AI Providers<br/>OpenAI, Groq, Gemini))
     
-    Blockchain[Algorand Blockchain]
+    Blockchain[Casper Network Blockchain]
     SmartContract[PayPerUseAI Smart Contract]
-    Indexer[Algorand Indexer]
+    Indexer[Casper Network Indexer]
 
     %% Connections
     User -->|Interacts| Frontend
-    Frontend <-->|Requests signature| PeraWallet
+    Frontend <-->|Requests signature| Casper Signer
     Frontend -->|REST / SSE Streams| Backend
     Frontend -->|Submits Atomic Txs| Blockchain
     
-    PeraWallet -->|Signs Txs| Blockchain
+    Casper Signer -->|Signs Txs| Blockchain
     
     Backend <-->|Reads/Writes| PostgreSQL
     Backend <-->|Proxies Prompts| AIProviders
@@ -44,14 +44,14 @@ graph TD
 
 ### 2.1. Frontend Application (React)
 - **Framework:** React / Vite.
-- **Wallet Integration:** Integrates with Pera Wallet via `@perawallet/connect` to manage keys securely on the client side.
+- **Wallet Integration:** Integrates with Casper Signer via `@Casper Wallet/connect` to manage keys securely on the client side.
 - **Core Responsibilities:**
-  - Facilitates the "Sign In With Algorand" (SIWA) flow by requesting the user to sign a cryptographic nonce.
-  - Constructs and submits Atomic Transaction Composers (ATC) directly to the Algorand network for `start_session` and `deposit`.
+  - Facilitates the "Sign In With Casper Network" (Casper Signature Verification) flow by requesting the user to sign a cryptographic nonce.
+  - Constructs and submits Atomic Transaction Composers (ATC) directly to the Casper Network network for `start_session` and `deposit`.
   - Consumes Server-Sent Events (SSE) from the backend for real-time AI token streaming.
 
-### 2.2. Smart Contract (Algorand Python / AlgoKit)
-- **State Storage:** Uses Algorand **Box Storage (BoxMaps)** to handle unlimited users without bloating global state.
+### 2.2. Smart Contract (Casper Network Python / CSPRKit)
+- **State Storage:** Uses Casper Network **Dictionary Storage (BoxMaps)** to handle unlimited users without bloating global state.
   - `b_<address>`: Escrow Balance Box.
   - `sb_<address>`: Session Balance Box (Max authorized spend for the current active session).
   - `se_<address>`: Session Expiry Box (Unix timestamp).
@@ -63,13 +63,13 @@ graph TD
 ### 2.3. Backend System (Python FastAPI)
 - **Framework:** High-performance async Python via FastAPI and Uvicorn.
 - **Routing Layer (`/app/routes/`)**:
-  - `auth.py`: Verifies SIWA signatures and issues JWT access tokens.
+  - `auth.py`: Verifies Casper Signature Verification signatures and issues JWT access tokens.
   - `chat.py`: Handles SSE streaming. Enforces the **Two-Phase Locking Pattern**.
   - `creators.py`: Manages the marketplace, agents, and securely stores API keys.
 - **Services Layer (`/app/services/`)**:
   - `ai_service.py`: Standardizes APIs for Groq, OpenAI, Gemini, and HuggingFace. Tracks token usage accurately for billing.
-  - `algorand_service.py`: Interfaces with the Algorand blockchain (AlgoNode/Nodely). Signs transactions using the Platform Wallet for NFT minting and service settlement.
-  - `event_listener.py`: A background daemon that polls the Algorand Indexer to map on-chain transactions to off-chain DB logs.
+  - `Casper Network_service.py`: Interfaces with the Casper Network blockchain (CasperNode/CSX). Signs transactions using the Platform Wallet for NFT minting and service settlement.
+  - `event_listener.py`: A background daemon that polls the Casper Network Indexer to map on-chain transactions to off-chain DB logs.
 - **Core Engine (`/app/core/`)**:
   - `encryption.py`: AES-256-GCM encryption for "Bring Your Own Key" (BYOK) storage. Keys are never stored in plaintext.
   - `limiter.py`: `slowapi` rate-limiting to prevent DDOS.
@@ -88,23 +88,23 @@ graph TD
 
 ## 3. Core System Flows
 
-### 3.1. Sign In With Algorand (SIWA) Authentication Flow
+### 3.1. Sign In With Casper Network (Casper Signature Verification) Authentication Flow
 ```mermaid
 sequenceDiagram
     participant User
     participant Frontend
-    participant PeraWallet
+    participant Casper Signer
     participant Backend
     participant DB as PostgreSQL
 
     User->>Frontend: Click "Connect Wallet"
-    Frontend->>PeraWallet: Connect Request
-    PeraWallet-->>Frontend: Return Wallet Address
+    Frontend->>Casper Signer: Connect Request
+    Casper Signer-->>Frontend: Return Wallet Address
     Frontend->>Backend: GET /auth/nonce?wallet={address}
     Backend->>DB: Store Nonce with Expiry
     Backend-->>Frontend: Return Nonce
-    Frontend->>PeraWallet: Sign Nonce Message
-    PeraWallet-->>Frontend: Return Signature
+    Frontend->>Casper Signer: Sign Nonce Message
+    Casper Signer-->>Frontend: Return Signature
     Frontend->>Backend: POST /auth/verify {address, signature}
     Backend->>Backend: Cryptographically Verify Signature
     Backend->>DB: Delete Nonce, Ensure User Exists
@@ -160,7 +160,7 @@ graph LR
 
 ### 4.1. Concurrency & Non-Blocking Design
 - **Async Architecture:** Both FastAPI and `asyncpg` ensure the backend can handle 10,000+ concurrent open SSE streaming connections without thread exhaustion.
-- **Multi-Node Fallback:** Blockchain RPC calls automatically rotate across free public nodes (AlgoNode, Nodely) via `httpx` to prevent rate-limiting bottlenecks.
+- **Multi-Node Fallback:** Blockchain RPC calls automatically rotate across free public nodes (CasperNode, CSX) via `httpx` to prevent rate-limiting bottlenecks.
 
 ### 4.2. Security Posture
 - **Double-Spend Protection:** The backend relies entirely on the Smart Contract for truth. If a user maliciously spams prompts, the backend's Two-Phase Lock tracks pending settlements. If the user depletes their on-chain balance, the `request_service_v2` atomic transaction fails, and the backend instantly terminates their active session locally.

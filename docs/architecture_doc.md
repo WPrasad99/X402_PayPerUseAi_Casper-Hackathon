@@ -3,7 +3,7 @@
 <div align="center">
 
 ![Cryptography](https://img.shields.io/badge/Security-AES--256--GCM-blueviolet?style=for-the-badge&logo=secretcase&logoColor=white)
-![Algorand](https://img.shields.io/badge/Blockchain-Algorand%20L1-black?style=for-the-badge&logo=algorand&logoColor=white)
+![Casper Network](https://img.shields.io/badge/Blockchain-Casper Network%20L1-black?style=for-the-badge&logo=Casper Network&logoColor=white)
 ![Realtime](https://img.shields.io/badge/Streaming-Server--Sent%20Events-orange?style=for-the-badge&logo=fastapi&logoColor=white)
 ![Protocol](https://img.shields.io/badge/Billing-X402%20Standard-emerald?style=for-the-badge&logo=payment&logoColor=white)
 
@@ -13,7 +13,7 @@
 
 ## 🏛️ 1. High-Level Architectural Diagram
 
-The system comprises three core layers: **Client Frontend (React)**, **FastAPI Orchestration Gateway**, and the **Algorand Testnet Ledger**, interacting in a hybrid layout.
+The system comprises three core layers: **Client Frontend (React)**, **FastAPI Orchestration Gateway**, and the **Casper Network Testnet Ledger**, interacting in a hybrid layout.
 
 ```mermaid
 sequenceDiagram
@@ -21,14 +21,14 @@ sequenceDiagram
     actor User as Consumer Wallet
     participant FE as React Frontend
     participant BE as FastAPI Gateway
-    participant SC as Smart Contract (Algorand)
+    participant SC as Smart Contract (Casper Network)
     participant AI as AI Model Hub (Gemini/OpenAI)
 
     Note over User,FE: Wallet Auth Layer
-    User->>FE: Connect Wallet (Pera Wallet SDK)
+    User->>FE: Connect Wallet (Casper Signer SDK)
     
     Note over FE,SC: On-Chain Escrow Layer
-    FE->>SC: Deploy/Join Session (Escrow Deposit in MicroAlgos)
+    FE->>SC: Deploy/Join Session (Escrow Deposit in motes)
     
     Note over FE,BE: Real-time Query Hub
     FE->>BE: Submit Chat Query (Session Authorized)
@@ -79,7 +79,7 @@ Rather than using long-polling or bulky WebSockets, our system delivers characte
 ### Performance Pipeline
 * **Pipelined Authentication**: The backend acts as a streaming gateway. The moment the API query is submitted, it validates the caller's smart session escrow buffer.
 * **Non-Blocking Inference Chunks**: As the foundation model returns token chunks (e.g. Gemini 2.0 Flash or GPT-4o), they are instantly serialized into standard `text/event-stream` chunks.
-* **On-Chain Settlement**: Once the stream concludes, the exact token count consumed (input + output) is computed. The backend executes a settlement transaction on the Algorand smart contract, deducting the exact token cost from the user's session escrow.
+* **On-Chain Settlement**: Once the stream concludes, the exact token count consumed (input + output) is computed. The backend executes a settlement transaction on the Casper Network smart contract, deducting the exact token cost from the user's session escrow.
 
 ---
 
@@ -88,25 +88,25 @@ Rather than using long-polling or bulky WebSockets, our system delivers characte
 > [!IMPORTANT]
 > Traditional blockchain applications require a wallet signature for every single message, which completely destroys the chat user experience. Pay-Per-Use-AI introduces **High-Performance Smart Sessions** to bypass this friction entirely.
 
-* **The 1 ALGO Escrow Buffer**: Upon starting a session, the user signs **once** via Pera Wallet to lock a 1 ALGO buffer inside the contract's secure BoxMap escrow.
+* **The 1 CSPR Escrow Buffer**: Upon starting a session, the user signs **once** via Casper Signer to lock a 1 CSPR buffer inside the contract's secure BoxMap escrow.
 * **Frictionless Prompts**: For the next 24 hours, the user can prompt the AI continuously without ever seeing another wallet signature popup!
-* **Transparent Settlement**: The backend calculates the MicroAlgo token costs in the background and settles them directly against the session escrow.
+* **Transparent Settlement**: The backend calculates the motes token costs in the background and settles them directly against the session escrow.
 * **Self-Governed Release**: The user can click "End Session" at any time, returning any unspent escrow balance back to their wallet instantly.
 
 ---
 
-## 🛡️ 5. X402 Protocol: Algorand Pay-Per-Use Billing Standard
+## 🛡️ 5. X402 Protocol: Casper Network Pay-Per-Use Billing Standard
 
-Pay-Per-Use-AI implements a custom **X402 protocol** (our proprietary billing specification for decentralized payment-gated APIs on Algorand L1) to govern query authentications.
+Pay-Per-Use-AI implements a custom **X402 protocol** (our proprietary billing specification for decentralized payment-gated APIs on Casper Network L1) to govern query authentications.
 
 ### The X402 Billing Protocol in Action
 1. **Request Interception**: Every incoming chat or image request to `/query` or `/image` is parsed for session authorization payload parameters.
 2. **On-Chain Balance Check**: The backend verifies the user's active session escrow balance.
-3. **The 402 HTTP Exception**: If the session is expired or does not have sufficient Algos to cover the next execution cost, the backend raises a strict `HTTP 402 Payment Required` exception:
+3. **The 402 HTTP Exception**: If the session is expired or does not have sufficient CSPRs to cover the next execution cost, the backend raises a strict `HTTP 402 Payment Required` exception:
    ```python
    raise HTTPException(
        status_code=402, 
        detail="On-chain verification denied: Insufficient session balance"
    )
    ```
-4. **Frontend Challenge Resolution**: The frontend React app catches the `402` status code. Instead of breaking the page or crashing, it triggers a custom **Escrow Recharge Challenge**. The user is prompted to sign a quick Pera Wallet top-up transaction to deposit additional Algos into their session Box, immediately resolving the billing block and resuming chat operations.
+4. **Frontend Challenge Resolution**: The frontend React app catches the `402` status code. Instead of breaking the page or crashing, it triggers a custom **Escrow Recharge Challenge**. The user is prompted to sign a quick Casper Signer top-up transaction to deposit additional CSPRs into their session Box, immediately resolving the billing block and resuming chat oCaspertions.
