@@ -211,11 +211,15 @@ async function createPaymentSession(paymentData, x402Options = {}) {
     emitPaymentStatus({ type: 'settling', amount: displayAmount });
     x402Options.onPaymentSettling?.(); // Notify UI to show loading spinner
 
+    const authToken = localStorage.getItem('auth_token');
+    const headers = { 'Content-Type': 'application/json' };
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+
     // Send to backend to broadcast and await confirmation (takes ~15 seconds)
     const sessionResp = await fetch(`${BASE_URL}/api/v1/payment/session/create-onchain`, {
       method: 'POST',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
+      headers: headers,
       body: JSON.stringify({
         deploy: deployJson,
         budget_units: sessionBudgetUnits,
@@ -276,10 +280,14 @@ async function createPaymentSession(paymentData, x402Options = {}) {
   
     emitPaymentStatus({ type: 'settling', amount: displayAmount });
   
+    const authToken = localStorage.getItem('auth_token');
+    const headers = { 'Content-Type': 'application/json' };
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+
     const sessionResp = await fetch(`${BASE_URL}/api/v1/payment/session/create`, {
       method: 'POST',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
+      headers: headers,
       body: JSON.stringify({
         payment_signature: paymentSignatureHeader,
         budget_units: sessionBudgetUnits,
