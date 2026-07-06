@@ -55,19 +55,7 @@ for default_org in ["http://localhost:5173", "http://127.0.0.1:5173", "http://lo
     if default_org not in origins:
         origins.append(default_org)
 
-# ── CORS Middleware ─────────────────────────────────────────
-# IMPORTANT: CORS must be added BEFORE x402 middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*", "PAYMENT-SIGNATURE"],  # Allow our custom header
-    expose_headers=["X-Payment-Transaction", "X-Payment-Network", "X-Payment-Amount"]
-)
-
 # ── x402 Payment Middleware ─────────────────────────────────
-# Add AFTER CORS so CORS headers are included in 402 responses too
 app.add_middleware(X402PaymentMiddleware)
 
 # ── Security + Logging Middleware ───────────────────────────
@@ -88,6 +76,16 @@ async def security_and_log_middleware(request: Request, call_next):
         "script-src 'self' 'unsafe-inline'"
     )
     return response
+
+# ── CORS Middleware (MUST BE LAST TO RUN FIRST) ─────────────
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*", "PAYMENT-SIGNATURE"],
+    expose_headers=["X-Payment-Transaction", "X-Payment-Network", "X-Payment-Amount"]
+)
 
 # ── Rate Limiter ─────────────────────────────────────────────
 app.state.limiter = limiter
