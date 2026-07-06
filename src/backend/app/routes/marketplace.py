@@ -65,7 +65,7 @@ async def register_service(data: RegisterServiceIn):
     await log_transaction(
         wallet_address=data.creator_address,
         tx_type="service_registered",
-        amount_microalgo=price_microalgo,
+        amount_motes=price_microalgo,
         description=f"Service registered: {data.service_id} at {data.price_algo} ALGO"
     )
 
@@ -124,7 +124,7 @@ async def update_service_price(service_id: str, data: UpdatePriceIn):
     await log_transaction(
         wallet_address=data.wallet_address,
         tx_type="price_updated",
-        amount_microalgo=price_microalgo,
+        amount_motes=price_microalgo,
         description=f"Price updated for {service_id}: {data.new_price_algo} ALGO"
     )
 
@@ -166,7 +166,7 @@ async def withdraw_earnings(data: WithdrawIn):
     await log_transaction(
         wallet_address=data.wallet_address,
         tx_type="earnings_withdrawal",
-        amount_microalgo=balance,
+        amount_motes=balance,
         description=f"Earnings withdrawal requested: {balance / 1_000_000:.4f} ALGO"
     )
 

@@ -158,7 +158,7 @@ async def chat(request: Request, data: ChatIn, wallet_address: str = Depends(get
             await log_transaction(
                 wallet_address=data.wallet_address,
                 tx_type="ai_usage",
-                amount_microalgo=cost_units, # still storing in DB as units
+                amount_motes=cost_units, # still storing in DB as units
                 description=f"AI usage: {data.service_id} | In: {input_tokens} Out: {output_tokens} | {cost_cspr:.6f} CSPR"
             )
             

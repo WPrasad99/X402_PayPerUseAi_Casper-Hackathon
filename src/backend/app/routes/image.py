@@ -89,7 +89,7 @@ async def generate_image_endpoint(
         await log_transaction(
             wallet_address=wallet_address,
             tx_type="image_generation",
-            amount_microalgo=cost,
+            amount_motes=cost,
             description=f"AI image generation: {data.prompt[:50]}"
         )
 
@@ -126,7 +126,7 @@ async def mint_image_endpoint(
         await log_transaction(
             wallet_address=wallet_address,
             tx_type="nft_mint",
-            amount_microalgo=0,
+            amount_motes=0,
             description=f"NFT minted: asset_id={asset_id}"
         )
 
@@ -153,7 +153,7 @@ async def transfer_image_endpoint(
         await log_transaction(
             wallet_address=wallet_address,
             tx_type="nft_transfer",
-            amount_microalgo=0,
+            amount_motes=0,
             description=f"NFT transferred: asset_id={data.asset_id}, txid={txid}"
         )
 

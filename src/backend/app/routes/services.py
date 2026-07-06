@@ -57,12 +57,12 @@ async def get_payment_info(service_id: str):
     qr.save(buffer, format="PNG")
     qr_b64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
     
-    amount_microalgo = service.get("price_microalgo", 1000)
-    amount_algo = service.get("price_algo", 0.001)
+    amount_motes = service.get("price_microalgo", 1000)
+    amount_cspr = service.get("price_algo", 0.001)
     instructions = [
         "1. Open Casper Wallet on your browser",
         "2. Send CSPR directly to the Platform Account Hash",
-        f"3. Send exactly {amount_algo} CSPR in a single transaction",
+        f"3. Send exactly {amount_cspr} CSPR in a single transaction",
         "4. Copy the Transaction Hash and paste it in the chat interface",
         "5. Click 'Verify & Get AI Response'"
     ]
@@ -71,8 +71,8 @@ async def get_payment_info(service_id: str):
         service_id=service_id,
         app_id=app_id,
         contract_address=contract_address,
-        amount_microalgo=amount_microalgo,
-        amount_algo=amount_algo,
+        amount_motes=amount_motes,
+        amount_cspr=amount_cspr,
         qr_code_base64=qr_b64,
         instructions=instructions
     )

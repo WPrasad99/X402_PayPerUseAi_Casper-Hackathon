@@ -63,7 +63,7 @@ async def process_query(data: QueryIn):
         await log_transaction(
             wallet_address=session["wallet_address"],
             tx_type="query_completed",
-            amount_microalgo=0,
+            amount_motes=0,
             on_chain_tx_id=data.tx_group_id,
             description=f"Query completed: {session['service_id']} | {tokens} tokens"
         )
