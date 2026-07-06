@@ -73,11 +73,6 @@ async def broadcast_and_confirm(
     # Unwrap the deploy (casper-js-sdk wraps it in {"deploy": {...}})
     inner_deploy = _unwrap_deploy(deploy_json)
     
-    # DEBUG: write the deploy to a file so we can inspect it
-    import json
-    with open("c:/Users/Prasad/Desktop/Pay-Per-Use-Ai/Pay-Per-Use-Ai - Copy/src/backend/last_deploy.json", "w") as f:
-        json.dump(inner_deploy, f, indent=2)
-
     logger.info("Broadcasting deploy to %s", url)
     logger.debug("Deploy inner keys: %s", list(inner_deploy.keys()) if isinstance(inner_deploy, dict) else type(inner_deploy))
 
