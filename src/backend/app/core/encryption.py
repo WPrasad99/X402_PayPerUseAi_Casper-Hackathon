@@ -33,6 +33,9 @@ def _get_encryption_key() -> bytes:
             status_code=500,
             detail="FATAL: API_KEY_ENCRYPTION_SECRET is not configured on the server. Please add it to your environment variables."
         )
+    
+    secret = secret.strip()
+    
     try:
         key_bytes = bytes.fromhex(secret)
         if len(key_bytes) != 32:
