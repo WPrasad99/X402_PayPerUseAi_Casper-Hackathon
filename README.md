@@ -29,10 +29,11 @@
 
 1. [Project Overview](#-1-project-overview)
 2. [Key Features](#-2-key-features)
-3. [Architecture Diagram](#-3-architecture-diagram)
-4. [Data Flow Diagram](#-4-data-flow-diagram)
-5. [Use Case Diagram](#-5-use-case-diagram)
-6. [Quick Start](#-6-quick-start)
+3. [Tech Stack](#-3-tech-stack)
+4. [Architecture Diagram](#-4-architecture-diagram)
+5. [Data Flow Diagram](#-5-data-flow-diagram)
+6. [Use Case Diagram](#-6-use-case-diagram)
+7. [Quick Start](#-7-quick-start)
 
 ---
 
@@ -54,7 +55,17 @@ Users connect their Casper Signer wallet, authorize a smart contract session, an
 
 ---
 
-## 🏗️ 3. Architecture Diagram
+## 💻 3. Tech Stack
+
+- **Frontend:** React, Vite, Tailwind CSS, Framer Motion
+- **Backend:** Python, FastAPI, PostgreSQL (asyncpg)
+- **Blockchain:** Casper Network, Casper Wallet Signer SDK, CEP-18 Tokens
+- **AI Models:** Groq (Llama 3.3), OpenAI (GPT-4o), Google (Gemini 2.0 Flash)
+- **Protocol:** X-402 (HTTP 402 Payment Required standard)
+
+---
+
+## 🏗️ 4. Architecture Diagram
 
 The system architecture utilizes a React frontend connected to the Casper Wallet, interfacing with a highly-scalable FastAPI backend orchestrator. 
 
@@ -100,7 +111,7 @@ graph TD
 
 ---
 
-## 🔄 4. Data Flow Diagram
+## 🔄 5. Data Flow Diagram
 
 The sequence below illustrates the lifecycle of a single Pay-Per-Use request, showcasing the X-402 payment challenge and atomic on-chain verification.
 
@@ -133,7 +144,7 @@ sequenceDiagram
 
 ---
 
-## 👥 5. Use Case Diagram
+## 👥 6. Use Case Diagram
 
 PayPerUseAI supports two primary actors: the end consumer (User) and the prompt engineer (Creator).
 
@@ -161,7 +172,7 @@ flowchart LR
 
 ---
 
-## 🚦 6. Quick Start
+## 🚦 7. Quick Start
 
 ### 1. Clone & Setup
 ```bash
