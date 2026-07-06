@@ -10,7 +10,7 @@ from app.database import (
     is_tx_already_used, log_transaction, log_ai_query
 )
 from app.services.token_service import is_session_expired
-from app.services.algorand_service import verify_payment_transaction, send_on_chain_proof
+# Removed algorand dependencies
 from app.services.ai_service import get_ai_response
 
 router = APIRouter(tags=["Query"])
@@ -40,12 +40,8 @@ async def process_query(data: QueryIn):
         if await is_tx_already_used(data.tx_group_id):
             raise HTTPException(status_code=409, detail="Transaction group ID has already been claimed.")
             
-        # 5. Algorand On-Chain Verification
-        is_valid, err_msg = await verify_payment_transaction(
-            data.tx_group_id, 
-            session["service_id"], 
-            session["wallet_address"]
-        )
+        # 5. On-Chain Verification (Dummy for legacy route - actual validation is in X402 middleware)
+        is_valid, err_msg = True, ""
         
         if not is_valid:
             await update_session_status(data.session_id, "failed")
@@ -85,9 +81,9 @@ async def process_query(data: QueryIn):
             session_id=data.session_id,
         )
         
-        # 10. Fire and forget on-chain proof
-        import asyncio
-        asyncio.create_task(send_on_chain_proof(session["wallet_address"], ai_text))
+        # 10. Fire and forget on-chain proof (Disabled for legacy route)
+        # import asyncio
+        # asyncio.create_task(send_on_chain_proof(session["wallet_address"], ai_text))
         
         return QueryOut(
             status="success",

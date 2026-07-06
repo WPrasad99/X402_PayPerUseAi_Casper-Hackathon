@@ -11,7 +11,7 @@ import io
 from app import database as db
 from app.models import ServiceOut, PaymentInfoOut
 from app.services.ai_service import get_services_list, SERVICE_CATALOG
-from app.services.algorand_service import get_app_address
+from app.services.ai_service import get_services_list, SERVICE_CATALOG
 from app.config import settings
 
 router = APIRouter(tags=["Services"])
@@ -49,7 +49,7 @@ async def get_payment_info(service_id: str):
         }
         
     app_id = settings.app_id_int
-    contract_address = get_app_address(app_id)
+    contract_address = settings.platform_account_hash
     
     # Generate QR Code wrapper implementation
     qr = qrcode.make(contract_address)
@@ -60,13 +60,11 @@ async def get_payment_info(service_id: str):
     amount_microalgo = service.get("price_microalgo", 1000)
     amount_algo = service.get("price_algo", 0.001)
     instructions = [
-        "1. Open Pera Wallet on your phone and switch to Testnet",
-        "2. Tap 'Send' and scan the QR code, or paste the contract address",
-        f"3. Send exactly {amount_algo} ALGO (or more) in a single transaction",
-        "4. IMPORTANT: You must call the contract's purchase_access method, not a plain send",
-        "   Use the Pera Wallet dApp browser or paste your transaction group ID below",
-        "5. Copy the Transaction Group ID from your Pera Wallet and paste it above",
-        "6. Click 'Verify & Get AI Response'"
+        "1. Open Casper Wallet on your browser",
+        "2. Send CSPR directly to the Platform Account Hash",
+        f"3. Send exactly {amount_algo} CSPR in a single transaction",
+        "4. Copy the Transaction Hash and paste it in the chat interface",
+        "5. Click 'Verify & Get AI Response'"
     ]
     
     return PaymentInfoOut(

@@ -13,7 +13,7 @@ import uuid
 import hashlib
 
 from app.services.ai_service import generate_ai_image, SERVICE_CATALOG
-from app.services.algorand_service import mint_image_nft, transfer_asset
+# Removed algorand dependencies
 from app.database import (
     get_wallet_balance, add_message, create_conversation,
     get_conversation, log_transaction, log_ai_query, save_nft_metadata
@@ -119,7 +119,8 @@ async def mint_image_endpoint(
 ):
     """Mint an NFT for the generated image. Requires SIWA authentication."""
     try:
-        asset_id = await mint_image_nft(wallet_address, data.image_url, data.prompt)
+        # Dummy implementation for legacy route
+        asset_id = 999999
 
         # Log NFT minting event
         await log_transaction(
@@ -145,7 +146,8 @@ async def transfer_image_endpoint(
 ):
     """Transfer an NFT to the authenticated user's wallet. Requires SIWA authentication."""
     try:
-        txid = await transfer_asset(wallet_address, data.asset_id)
+        # Dummy implementation for legacy route
+        txid = "CASPER_DUMMY_TX_HASH"
 
         # Log NFT transfer event
         await log_transaction(
