@@ -28,9 +28,10 @@ def _get_encryption_key() -> bytes:
             secret = ""
 
     if not secret:
-        raise RuntimeError(
-            "FATAL: API_KEY_ENCRYPTION_SECRET is not configured. "
-            "Generate a 32-byte hex key with: python -c \"import os; print(os.urandom(32).hex())\""
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code=500,
+            detail="FATAL: API_KEY_ENCRYPTION_SECRET is not configured on the server. Please add it to your environment variables."
         )
     try:
         key_bytes = bytes.fromhex(secret)
@@ -38,7 +39,8 @@ def _get_encryption_key() -> bytes:
             raise ValueError("Key must be exactly 32 bytes (64 hex characters)")
         return key_bytes
     except (ValueError, Exception) as e:
-        raise RuntimeError(f"Invalid API_KEY_ENCRYPTION_SECRET: {e}")
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail=f"Invalid API_KEY_ENCRYPTION_SECRET on server: {e}")
 
 
 def encrypt_api_key(plaintext_key: str) -> str:

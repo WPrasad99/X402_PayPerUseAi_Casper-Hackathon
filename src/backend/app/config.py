@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     # HuggingFace
     hf_api_key: str = ""
     
+    # Creator Encryption
+    api_key_encryption_secret: str = ""
+    
     # ── Casper Network ────────────────────────────────────────
     # Platform receiver: account hash (00<64hex>) derived from the public key
     platform_account_hash: str = ""
