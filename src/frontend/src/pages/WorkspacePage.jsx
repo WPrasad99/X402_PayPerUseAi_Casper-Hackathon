@@ -950,6 +950,7 @@ const WorkspacePage = () => {
             }
 
             getConversationHistory(wallet, null).then(setHistory).catch(() => {});
+            getUserAnalytics(wallet).then(setUserAnalytics).catch(() => {});
             checkSessionStatus().catch(() => {});
         } catch (err) {
             setError(err.message || 'Request failed');
