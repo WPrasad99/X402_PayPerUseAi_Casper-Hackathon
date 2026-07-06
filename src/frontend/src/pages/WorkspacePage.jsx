@@ -1304,11 +1304,11 @@ const WorkspacePage = () => {
                                 <div className="flex flex-col gap-2">
                                     <div className="flex justify-between items-center bg-gray-50 p-2.5 rounded-lg border border-gray-100">
                                         <span className="text-xs font-medium text-gray-500">Last 30 Days</span>
-                                        <p className="text-xl font-semibold text-gray-900">{(userAnalytics?.spent_algo_30d || 0)?.toFixed(2)} CSPR</p>
+                                        <p className="text-xl font-semibold text-gray-900">{(userAnalytics?.spent_cspr_30d || 0)?.toFixed(2)} CSPR</p>
                                     </div>
                                     <div className="flex justify-between items-center bg-gray-50 p-2.5 rounded-lg border border-gray-100">
                                         <span className="text-xs font-medium text-gray-500">Per Session (Avg)</span>
-                                        <p className="text-xl font-semibold text-gray-900">{(userAnalytics?.avg_algo_per_session || 0)?.toFixed(2)} CSPR</p>
+                                        <p className="text-xl font-semibold text-gray-900">{(userAnalytics?.avg_cspr_per_session || 0)?.toFixed(2)} CSPR</p>
                                     </div>
                                 </div>
                             </div>
