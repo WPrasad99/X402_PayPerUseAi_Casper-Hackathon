@@ -212,7 +212,7 @@ class X402PaymentMiddleware(BaseHTTPMiddleware):
         request.state.x402_settled = True
         request.state.x402_mode = "session"
         request.state.x402_session_token = session_token
-        request.state.x402_payer = session["payer"]
+        request.state.x402_payer = session["payer_wallet"]
         request.state.x402_transaction = session["tx_hash"]
         request.state.x402_amount_units = base_cost_units
         request.state.x402_session_remaining = session_info["remaining_units"]
