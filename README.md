@@ -25,6 +25,14 @@
 
 ---
 
+## 🌐 Live Demo & Links
+
+- **Frontend Application:** [https://x402-payperuseai-casper-hackathon-1.onrender.com](https://x402-payperuseai-casper-hackathon-1.onrender.com)
+- **Backend API:** [https://x402-payperuseai-casper-hackathon.onrender.com](https://x402-payperuseai-casper-hackathon.onrender.com)
+- **On-Chain Verification (Casper Testnet):** [View Smart Contract Deploy on cspr.live](https://testnet.cspr.live/deploy/5eb44587e6d832768459a7d52b49945f7798495bc261072ae7eaab53912f107d)
+
+---
+
 ## 📑 Table of Contents
 
 1. [Project Overview](#-1-project-overview)
