@@ -88,9 +88,13 @@ async def execute_agent_chat(
 
     # 3. Instantiate provider adapter
     ProviderClass = _get_provider_class(provider_name)
+    model_name = agent['model']
+    if model_name == 'gemini-2.0-flash':
+        model_name = 'gemini-1.5-flash'
+        
     provider = ProviderClass(
         api_key=api_key,
-        model=agent['model'],
+        model=model_name,
         system_prompt=agent['system_prompt'],
         temperature=agent.get('temperature', 0.7),
         max_tokens=agent.get('max_tokens', 1500),

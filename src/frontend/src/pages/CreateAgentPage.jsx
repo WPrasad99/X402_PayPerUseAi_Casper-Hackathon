@@ -11,7 +11,7 @@ import {
 const PROVIDERS = [
     { id: 'openai', name: 'OpenAI', models: ['gpt-4o-mini', 'gpt-4o', 'gpt-3.5-turbo'] },
     { id: 'groq', name: 'Groq', models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768'] },
-    { id: 'gemini', name: 'Google Gemini', models: ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-2.0-flash-lite'] },
+    { id: 'gemini', name: 'Google Gemini', models: ['gemini-1.5-flash', 'gemini-1.5-pro'] },
     { id: 'huggingface', name: 'HuggingFace', models: ['Qwen/Qwen2.5-72B-Instruct', 'meta-llama/Llama-3-70b-chat-hf'] },
 ];
 
@@ -75,7 +75,7 @@ export default function CreateAgentPage() {
     const [tags, setTags] = useState('');
 
     const [provider, setProvider] = useState('gemini');
-    const [model, setModel] = useState('gemini-2.0-flash');
+    const [model, setModel] = useState('gemini-1.5-flash');
     const [systemPrompt, setSystemPrompt] = useState('');
     const [temperature, setTemperature] = useState(0.7);
     const [maxTokens, setMaxTokens] = useState(1500);

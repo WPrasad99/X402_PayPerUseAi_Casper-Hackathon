@@ -92,6 +92,39 @@ class X402PaymentMiddleware(BaseHTTPMiddleware):
         base_cost_units, description = protected_config
         resource_url = str(request.url)
         
+        # ── Check for Creator Bypass ─────────────────────────────────────────
+        # If the requester is the creator of the agent, allow free access.
+        if path.startswith("/api/v1/agents/") and path.endswith("/chat"):
+            parts = path.split("/")
+            if len(parts) >= 6:
+                agent_id = parts[4]
+                # Try to get wallet from auth cookie/header
+                auth_cookie = request.cookies.get("access_token")
+                auth_header = request.headers.get("Authorization") or request.headers.get("authorization")
+                
+                token = auth_cookie
+                if not token and auth_header and auth_header.startswith("Bearer "):
+                    token = auth_header.split("Bearer ")[1]
+                    
+                if token:
+                    try:
+                        from app.core.security import decode_access_token
+                        caller_wallet = decode_access_token(token)
+                        
+                        from app import database as db
+                        agent = await db.get_ai_agent(agent_id)
+                        if agent and agent.get("creator_wallet") == caller_wallet:
+                            logger.info(f"x402: Creator {caller_wallet} bypassing payment for agent {agent_id}")
+                            request.state.x402_settled = True
+                            request.state.x402_mode = "creator_bypass"
+                            request.state.x402_payer = caller_wallet
+                            request.state.x402_transaction = "bypass"
+                            request.state.x402_amount_units = 0
+                            return await call_next(request)
+                    except Exception as e:
+                        logger.warning(f"x402: Creator bypass check failed: {e}")
+                        pass
+                        
         # ── Mode 1: Session Token ─────────────────────────────────────────────
         session_token = (
             request.headers.get("X-Session-Token") or
