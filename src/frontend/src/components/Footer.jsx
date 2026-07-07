@@ -272,7 +272,7 @@ const Footer = () => {
                                 <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-accent" />
                             </span>
                             <span className="text-[11px] font-medium text-accent tracking-wide">
-                                Built on Algorand
+                                Built on Casper
                             </span>
                         </div>
                     </motion.div>

@@ -51,7 +51,7 @@ const ServicesPage = () => {
                         <span className="text-white font-bold text-2xl">P</span>
                     </div>
                     <h2 className="text-2xl font-bold text-white mb-3">Wallet Required</h2>
-                    <p className="text-sm text-gray-400 mb-6">Connect your Algorand wallet from the navigation menu above to view and access premium AI services.</p>
+                    <p className="text-sm text-gray-400 mb-6">Connect your Casper wallet from the navigation menu above to view and access premium AI services.</p>
                 </div>
             </div>
         );

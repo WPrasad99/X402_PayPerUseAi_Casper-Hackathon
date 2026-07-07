@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { peraWallet } from '../config/peraWallet';
+import { connectCasperWallet } from '../api/casperWallet';
 import { getUserProfile, getNonce, verifySiwa, registerUser } from '../api/client';
 
 // Read the persisted wallet (same 24h logic as Navbar)
@@ -32,7 +32,7 @@ import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 const ROTATING_WORDS = ["trap.", "lock-in.", "friction.", "fees."];
 
 const STEPS = [
-  { num: 'I', title: 'Connect your wallet', desc: 'Link your Pera Wallet in seconds. Authorize a tiny ALGO allowance — no subscription, no surprise renewal.', icon: '🎯' },
+  { num: 'I', title: 'Connect your wallet', desc: 'Link your Casper Wallet in seconds. Pre-fund a micro-session in CSPR — no subscription, no surprise renewal.', icon: '🎯' },
   { num: 'II', title: 'Pick an AI worker', desc: 'Choose the AI service you need for one task: code, analysis, writing, support, or content generation.', icon: '🛡️' },
   { num: 'III', title: 'Ship to production', desc: 'Get your result with on-chain verification proof. Every paid usage is auditable and transparent.', icon: '⚡' },
 ];
@@ -41,7 +41,7 @@ const FEATURES = [
   {
     icon: <svg className="w-6 h-6 text-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>,
     title: 'On-chain proof of usage',
-    desc: 'Each paid action is tied to Algorand verification, making spend easier to audit.'
+    desc: 'Each paid action is tied to Casper verification, making spend easier to audit.'
   },
   {
     icon: <svg className="w-6 h-6 text-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
@@ -51,7 +51,7 @@ const FEATURES = [
   {
     icon: <svg className="w-6 h-6 text-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>,
     title: 'Wallet-first access',
-    desc: 'Reduce account friction while keeping payment consent explicit through Pera Wallet.'
+    desc: 'Reduce account friction while keeping payment consent explicit through Casper Wallet.'
   },
   {
     icon: <svg className="w-6 h-6 text-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>,
@@ -88,7 +88,7 @@ const ABOUT_FEATURES = [
     desc: "Build intelligent applications with built-in AI capabilities. From inference to training, everything scales automatically.",
     icon: (
       <svg className="w-16 h-16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <circle cx="12" cy="12" r="3" fill="currentColor" stroke="none" />
+        <text x="35" y="115" fontSize="11" fill="currentColor" opacity="0.6" textAnchor="middle">Cost: 10 CSPR</text>
         <circle cx="12" cy="4" r="1.5" />
         <circle cx="12" cy="20" r="1.5" />
         <circle cx="4" cy="12" r="1.5" />
@@ -445,7 +445,7 @@ const TerminalCard = () => {
     { num: '1', parts: [{ text: 'PayPerUseAI', cls: 'text-blue-400' }, { text: ".deploy({", cls: 'text-white/80' }] },
     { num: '2', parts: [{ text: '  model: ', cls: 'text-white/50' }, { text: "'gpt-4o'", cls: 'text-emerald-400' }, { text: ',', cls: 'text-white/50' }] },
     { num: '3', parts: [{ text: '  billing: ', cls: 'text-white/50' }, { text: "'per-token'", cls: 'text-emerald-400' }, { text: ',', cls: 'text-white/50' }] },
-    { num: '4', parts: [{ text: '  chain: ', cls: 'text-white/50' }, { text: "'algorand'", cls: 'text-emerald-400' }] },
+    { num: '4', parts: [{ text: '  chain: ', cls: 'text-white/50' }, { text: "'casper'", cls: 'text-emerald-400' }] },
     { num: '5', parts: [{ text: '})', cls: 'text-white/80' }] },
     { num: '6', parts: [{ text: '// Verified on-chain ✓', cls: 'text-white/25' }] },
   ];
@@ -530,7 +530,7 @@ const TerminalCard = () => {
             {status === 'typing' && 'Writing...'}
             {status === 'compiling' && 'Compiling contract...'}
             {status === 'deployed' && 'Deploying to mainnet...'}
-            {status === 'verified' && '✓ Verified on Algorand'}
+            {status === 'verified' && '✓ Verified on Casper'}
           </motion.span>
         </AnimatePresence>
 
@@ -594,40 +594,30 @@ const Home = () => {
 
   const handleConnect = async () => {
     if (isConnecting) return;
-    // If already connected, just go to workspace
     if (getPersistedWallet()) {
       navigate('/dashboard');
       return;
     }
     setIsConnecting(true);
-    setConnectStatus('Connecting to Pera...');
+    setConnectStatus('Connecting to Casper...');
     try {
-      let accounts = [];
-      try { accounts = await peraWallet.reconnectSession(); } catch (_) { }
-      if (!accounts || accounts.length === 0) accounts = await peraWallet.connect();
-      if (!accounts || accounts.length === 0) throw new Error('Connection cancelled.');
-      peraWallet.connector?.on('disconnect', () => {
-        localStorage.removeItem('wallet_address');
-        localStorage.removeItem('wallet_expiry');
-        sessionStorage.clear();
-        setIsWalletConnected(false);
-      });
-      const addr = accounts[0];
+      const { connectCasperWallet, getActiveAccount, signSignInMessage } = await import('../api/casperWallet');
+      const connected = await connectCasperWallet();
+      if (!connected) throw new Error('Connection cancelled.');
+      
+      const { publicKey } = await getActiveAccount();
+      if (!publicKey) throw new Error('Could not get public key from wallet');
+      const addr = publicKey;
 
       setConnectStatus('Please wait...');
       const { nonce } = await getNonce(addr);
       const message = `PayPerUseAI Sign-In\nWallet: ${addr}\nNonce: ${nonce}`;
-      const msgBytes = new TextEncoder().encode(message);
 
       setConnectStatus('Sign in Wallet...');
-      const signedData = await peraWallet.signData([{ data: msgBytes, message }], addr);
+      const { signature } = await signSignInMessage(message);
 
       setConnectStatus('Verifying...');
-      const sigBytes = signedData[0] instanceof Uint8Array
-        ? signedData[0]
-        : new Uint8Array(Object.values(signedData[0]));
-      const sigB64 = btoa(Array.from(sigBytes, b => String.fromCharCode(b)).join(''));
-      await verifySiwa(addr, message, sigB64);
+      await verifySiwa(addr, message, signature);
       persistWallet(addr);
       setIsWalletConnected(true);
       try {
@@ -768,7 +758,7 @@ const Home = () => {
               <button
                 onClick={(e) => {
                   e.preventDefault();
-                  window.open('https://www.youtube.com/watch?v=wxWkeq6ea4A', '_blank');
+                  window.open('https://www.youtube.com/watch?v=MmNNBNDf3oA', '_blank');
                 }}
                 className="btn-secondary text-base !px-8 !py-4 group"
               >
@@ -1462,7 +1452,7 @@ const Home = () => {
               <div className="flex items-center gap-3">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 <p className="text-xs text-muted/50 font-mono tracking-wider">
-                  Connect Pera Wallet · Pay per task · No credit card
+                  Connect Casper Wallet · Pay per task · No credit card
                 </p>
               </div>
             </div>

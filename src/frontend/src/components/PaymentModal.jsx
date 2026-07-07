@@ -31,7 +31,7 @@ const PaymentModal = ({ paymentInfo, onWalletSubmit, isLoading }) => {
                             </h2>
 
                             <p className="mt-3 font-bold leading-7 text-neo-muted">
-                                Scan, copy, and verify the exact Algorand payment
+                                Scan, copy, and verify the exact Casper payment
                                 details before reserving your AI request.
                             </p>
                         </div>
@@ -144,7 +144,7 @@ const PaymentModal = ({ paymentInfo, onWalletSubmit, isLoading }) => {
                         <div>
 
                             <label className="mb-2 block text-sm font-black uppercase tracking-[0.16em] text-neo-green">
-                                Your Algorand Wallet Address
+                                Your Casper Wallet Address
                             </label>
 
                             <input

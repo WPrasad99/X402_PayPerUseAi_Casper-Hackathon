@@ -627,7 +627,7 @@ const WorkspacePage = () => {
                 signed = await pw.signTransaction([group.map(txn => ({ txn, signers: [wallet] }))]);
             }
 
-            setPayingStatus('Sending to Algorand...');
+            setPayingStatus('Sending to Casper...');
             const { txId } = await client.sendRawTransaction(signed).do();
 
             setPayingStatus('Confirming on-chain...');
@@ -1232,7 +1232,7 @@ const WorkspacePage = () => {
                             </div>
                             {mintedAssetId && (
                                 <p className="rounded-xl bg-yellow-50 text-yellow-700 border border-yellow-200 px-3 py-2 text-xs font-semibold shadow-sm">
-                                    Minted on Algorand Testnet: #{mintedAssetId}
+                                    Minted on Casper Testnet: #{mintedAssetId}
                                 </p>
                             )}
                         </div>

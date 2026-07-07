@@ -32,7 +32,7 @@ const ResultPage = () => {
                         </div>
                         <div>
                             <h2 className="text-xl font-bold text-white">AI Response Ready</h2>
-                            <p className="text-xs text-gray-500">Payment verified on Algorand Testnet</p>
+                            <p className="text-xs text-gray-500">Payment verified on Casper Testnet</p>
                         </div>
                     </div>
 

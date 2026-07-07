@@ -77,7 +77,7 @@ const SharedChatPage = () => {
             </main>
 
             <footer className="p-8 text-center text-gray-600 text-xs border-t border-white/5 mt-auto">
-                © 2024 PayPerUseAI. Secure X402 Algorand Payments.
+                © 2024 PayPerUseAI. Secure X402 Casper Payments.
             </footer>
         </div>
     );
