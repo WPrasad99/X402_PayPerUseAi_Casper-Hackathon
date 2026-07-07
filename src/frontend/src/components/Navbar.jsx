@@ -356,7 +356,7 @@ const Navbar = () => {
                     <div className="hidden md:flex items-center gap-0.5">
                         {navLinks.map(link => {
                             const active = isActive(link);
-                            const linkClasses = `relative px-3.5 py-1.5 text-[13px] font-medium transition-all duration-300 rounded-full ${
+                            const linkClasses = `relative whitespace-nowrap px-3.5 py-1.5 text-[13px] font-medium transition-all duration-300 rounded-full ${
                                 active
                                     ? 'text-foreground'
                                     : 'text-foreground/50 hover:text-foreground hover:bg-foreground/[0.04]'
