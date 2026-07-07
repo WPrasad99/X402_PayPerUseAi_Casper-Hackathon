@@ -137,8 +137,8 @@ const AI_MODELS = [
     desc: 'Fast and intelligent multi-purpose assistant from OpenAI.',
     usdInput: '$0.45',
     usdOutput: '$1.80',
-    algoInput: '1.30 ALGO',
-    algoOutput: '5.20 ALGO',
+    algoInput: '1.30 CSPR',
+    algoOutput: '5.20 CSPR',
     features: ['High reasoning capability', '128k context window', 'Vision support', 'Ideal for coding']
   },
   {
@@ -148,8 +148,8 @@ const AI_MODELS = [
     desc: "Google's lightweight, fast, and highly capable multimodal model.",
     usdInput: '$0.22',
     usdOutput: '$0.90',
-    algoInput: '0.35 ALGO',
-    algoOutput: '1.40 ALGO',
+    algoInput: '0.35 CSPR',
+    algoOutput: '1.40 CSPR',
     features: ['2M context window', 'Native multimodal', 'Fast processing', 'Data analysis']
   },
   {
@@ -159,8 +159,8 @@ const AI_MODELS = [
     desc: 'Lightning-fast general purpose reasoning model powered by Groq.',
     usdInput: '$1.77',
     usdOutput: '$2.37',
-    algoInput: '0.95 ALGO',
-    algoOutput: '2.80 ALGO',
+    algoInput: '0.95 CSPR',
+    algoOutput: '2.80 CSPR',
     features: ['Open-source weights', 'Low latency via Groq', 'High efficiency', 'General text generation']
   },
   {
@@ -170,8 +170,8 @@ const AI_MODELS = [
     desc: 'Powerful open-weights model capable of deep technical insights.',
     usdInput: '$1.20',
     usdOutput: '$1.20',
-    algoInput: '2.60 ALGO',
-    algoOutput: '5.50 ALGO',
+    algoInput: '2.60 CSPR',
+    algoOutput: '5.50 CSPR',
     features: ['Strong multilingual', 'Cost-effective', 'Coding support', 'Deep insights']
   },
 ];
